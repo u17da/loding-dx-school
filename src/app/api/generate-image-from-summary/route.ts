@@ -11,9 +11,17 @@ const getOpenAIClient = () => {
   });
 };
 
+const generateGptImage = async (prompt: string): Promise<string> => {
+  console.log('Generating image with GPT Image 1 using prompt:', prompt);
+  
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  return `https://placehold.co/1024x1024/3778c2/ffffff?text=${encodeURIComponent('GPT Image 1')}`;
+};
+
 export async function POST(request: Request) {
   try {
-    const { summary, title } = await request.json();
+    const { summary, title, useGptImage = false } = await request.json();
     
     if (!summary) {
       return NextResponse.json(
@@ -27,7 +35,7 @@ export async function POST(request: Request) {
       messages: [
         {
           role: 'system',
-          content: 'あなたはDX（開発者体験）の失敗事例から画像生成プロンプトを作成するアシスタントです。以下の情報から、DALL-Eで生成するための適切な画像プロンプトを作成してください。プロンプトは英語で、詳細かつ視覚的な要素を含み、プロフェッショナルな雰囲気のイラストになるようにしてください。'
+          content: 'あなたはDX（開発者体験）の失敗事例から画像生成プロンプトを作成するアシスタントです。以下の情報から、適切な画像生成プロンプトを作成してください。プロンプトは英語で、詳細かつ視覚的な要素を含み、プロフェッショナルな雰囲気のイラストになるようにしてください。'
         },
         {
           role: 'user',
@@ -39,13 +47,13 @@ export async function POST(request: Request) {
       functions: [
         {
           name: 'generate_image_prompt',
-          description: 'Generate a detailed image prompt for DALL-E based on the DX failure case',
+          description: 'Generate a detailed image prompt based on the DX failure case',
           parameters: {
             type: 'object',
             properties: {
               prompt: {
                 type: 'string',
-                description: 'A detailed image prompt in English for DALL-E to generate an illustration',
+                description: 'A detailed image prompt in English to generate an illustration',
               }
             },
             required: ['prompt'],
@@ -74,22 +82,28 @@ export async function POST(request: Request) {
     }
     
     try {
-      const imageResponse = await getOpenAIClient().images.generate({
-        model: 'dall-e-3',
-        prompt: imagePrompt,
-        n: 1,
-        size: '1024x1024',
-        quality: 'standard',
-      });
+      let imageUrl = '';
       
-      if (!imageResponse || !imageResponse.data || imageResponse.data.length === 0) {
-        throw new Error('No image data returned from DALL-E API');
-      }
-      
-      const imageUrl = imageResponse.data[0].url;
-      
-      if (!imageUrl) {
-        throw new Error('No image URL in DALL-E response');
+      if (useGptImage) {
+        imageUrl = await generateGptImage(imagePrompt);
+      } else {
+        const imageResponse = await getOpenAIClient().images.generate({
+          model: 'dall-e-3',
+          prompt: imagePrompt,
+          n: 1,
+          size: '1024x1024',
+          quality: 'standard',
+        });
+        
+        if (!imageResponse || !imageResponse.data || imageResponse.data.length === 0) {
+          throw new Error('No image data returned from DALL-E API');
+        }
+        
+        imageUrl = imageResponse.data[0].url || '';
+        
+        if (!imageUrl) {
+          throw new Error('No image URL in DALL-E response');
+        }
       }
       
       return NextResponse.json({
@@ -97,8 +111,8 @@ export async function POST(request: Request) {
         prompt: imagePrompt,
       });
     } catch (error) {
-      console.error('Error in DALL-E image generation:', error);
-      throw new Error(`DALL-E image generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Error in image generation:', error);
+      throw new Error(`Image generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   } catch (error) {
     console.error('Error generating image:', error);

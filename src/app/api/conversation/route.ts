@@ -15,6 +15,12 @@ type ConversationData = {
   paragraph_summary?: string;
 };
 
+type ConversationState = 
+  | 'waiting_for_initial_submission'
+  | 'asking_for_additional_details'
+  | 'asking_for_suggestions'
+  | 'conversation_completed';
+
 const getOpenAIClient = () => {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error('OPENAI_API_KEY environment variable is missing');
@@ -25,30 +31,140 @@ const getOpenAIClient = () => {
   });
 };
 
-type ConversationStage = 
-  | 'initial' 
-  | 'gathering_details' 
-  | 'exploring_impact' 
-  | 'understanding_cause' 
-  | 'seeking_suggestions' 
-  | 'summarizing';
-
-const getConversationStage = (messages: Array<{role: string, content: string}>): ConversationStage => {
-  const messageCount = messages.filter(m => m.role === 'user').length;
+const hasAdviceOrSuggestion = (message: string): boolean => {
+  const adviceKeywords = [
+    'すればよかった', 'しておけば', 'べきだった', 'した方が', 'するべき',
+    'してほしい', 'してくれたら', 'してほしかった', 'すれば', 'するといい',
+    '改善', 'アドバイス', '提案', '次回は', '今後は'
+  ];
   
-  if (messageCount <= 1) return 'initial';
-  if (messageCount <= 3) return 'gathering_details';
-  if (messageCount <= 5) return 'exploring_impact';
-  if (messageCount <= 7) return 'understanding_cause';
-  if (messageCount <= 9) return 'seeking_suggestions';
-  return 'summarizing';
+  return adviceKeywords.some(keyword => message.includes(keyword));
 };
 
-const isConversationComplete = (messages: Array<{role: string, content: string}>, conversationData: ConversationData): boolean => {
-  const userMessageCount = messages.filter(m => m.role === 'user').length;
-  const hasKeyInfo = !!(conversationData.summary && conversationData.impact && conversationData.suggestions);
+const getNextConversationState = (
+  currentState: ConversationState,
+  messages: Array<{role: string, content: string}>,
+  conversationData: ConversationData
+): { nextState: ConversationState; shouldComplete: boolean } => {
+  const lastUserMessage = [...messages].reverse().find(m => m.role === 'user')?.content || '';
   
-  return userMessageCount >= 6 && hasKeyInfo;
+  switch (currentState) {
+    case 'waiting_for_initial_submission':
+      return { 
+        nextState: 'asking_for_additional_details',
+        shouldComplete: false
+      };
+      
+    case 'asking_for_additional_details':
+      if (hasAdviceOrSuggestion(lastUserMessage)) {
+        return { 
+          nextState: 'conversation_completed',
+          shouldComplete: true
+        };
+      }
+      
+      if (messages.filter(m => m.role === 'user').length >= 3) {
+        return { 
+          nextState: 'asking_for_suggestions',
+          shouldComplete: false
+        };
+      }
+      
+      return { 
+        nextState: 'asking_for_additional_details',
+        shouldComplete: false
+      };
+      
+    case 'asking_for_suggestions':
+      if (hasAdviceOrSuggestion(lastUserMessage)) {
+        return { 
+          nextState: 'conversation_completed',
+          shouldComplete: true
+        };
+      }
+      
+      return { 
+        nextState: 'asking_for_suggestions',
+        shouldComplete: false
+      };
+      
+    case 'conversation_completed':
+      return { 
+        nextState: 'conversation_completed',
+        shouldComplete: true
+      };
+      
+    default:
+      return { 
+        nextState: 'asking_for_additional_details',
+        shouldComplete: false
+      };
+  }
+};
+
+const getSystemPromptForState = (state: ConversationState, messages: Array<{role: string, content: string}>): string => {
+  const userMessageCount = messages.filter(m => m.role === 'user').length;
+  const isFirstMessage = userMessageCount <= 1;
+  
+  switch (state) {
+    case 'waiting_for_initial_submission':
+      return `あなたはDX（開発者体験）の失敗事例を収集する共感的なアシスタントです。
+      
+      ユーザーが初めて失敗事例を入力したところです。まずは共感的な応答をして、ユーザーが安心して話せる雰囲気を作ってください。
+      例えば「それは大変でしたね」「なるほど、そういう状況だったんですね」などの言葉を使ってください。
+      
+      その後、自然な流れで追加の詳細を聞いてください。ただし、質問攻めにならないよう注意してください。
+      会話を通じて以下の情報を自然に引き出せるとよいですが、強制的に聞き出す必要はありません：
+      - 失敗の概要
+      - いつ、どこで、誰が関わったか（もし自然に出てくれば）
+      - どのような影響があったか
+      - 原因や理由
+      
+      ユーザーの回答から適切な情報を抽出し、function callingを使用して情報を返してください。`;
+      
+    case 'asking_for_additional_details':
+      return `あなたはDX（開発者体験）の失敗事例を収集する共感的なアシスタントです。
+      
+      ${isFirstMessage ? '初めての応答では、まず共感を示し、ユーザーが安心して話せる雰囲気を作ってください。' : '引き続き共感的な態度で会話を進めてください。'}
+      
+      自然な流れで会話を続け、ユーザーの話に寄り添いながら、さりげなく詳細を引き出してください。
+      質問攻めにならないよう、一度に複数の質問をしないでください。
+      
+      会話を通じて以下の情報を自然に引き出せるとよいですが、強制的に聞き出す必要はありません：
+      - 失敗の概要や状況の詳細
+      - どのような影響があったか
+      - 原因や理由
+      
+      ユーザーの回答から適切な情報を抽出し、function callingを使用して情報を返してください。`;
+      
+    case 'asking_for_suggestions':
+      return `あなたはDX（開発者体験）の失敗事例を収集する共感的なアシスタントです。
+      
+      これまでの会話で失敗事例についての基本的な情報が集まりました。
+      ここで、ユーザーに「こうすればよかった」「こうしておいてくれたら」といった改善案やアドバイスを聞いてみてください。
+      
+      例えば以下のような質問が適切です：
+      「この経験から、次回はどうすればよいと思いますか？」
+      「こうしておけばよかったことや、改善したほうがいいと感じたことを教えてもらえますか？」
+      「同じような状況になった人へのアドバイスがあれば教えてください」
+      
+      ユーザーの回答から適切な情報を抽出し、function callingを使用して情報を返してください。`;
+      
+    case 'conversation_completed':
+      return `あなたはDX（開発者体験）の失敗事例を収集する共感的なアシスタントです。
+      
+      会話が完了しました。ユーザーに感謝の言葉を伝え、情報が揃ったことを伝えてください。
+      例えば「ありがとうございます！それではいただいた情報でローディングDX事例を生成してみます！」などのメッセージが適切です。
+      
+      ユーザーの回答から適切な情報を抽出し、function callingを使用して情報を返してください。`;
+      
+    default:
+      return `あなたはDX（開発者体験）の失敗事例を収集する共感的なアシスタントです。
+      
+      自然な会話を心がけ、ユーザーの感情に寄り添いながら情報を引き出してください。
+      
+      ユーザーの回答から適切な情報を抽出し、function callingを使用して情報を返してください。`;
+  }
 };
 
 const generateParagraphSummary = async (messages: Array<{role: 'user' | 'assistant', content: string}>): Promise<string> => {
@@ -65,7 +181,9 @@ const generateParagraphSummary = async (messages: Array<{role: 'user' | 'assista
         - 改善方法や提案
         
         自然で読みやすい日本語の段落として、これらの情報を有機的につなげてください。
-        箇条書きではなく、流れるような文章にしてください。`
+        箇条書きではなく、流れるような文章にしてください。
+        
+        重要：情報が不足している場合でも、無理に推測せず、会話から得られた情報のみを使用してください。`
       },
       ...messages
     ];
@@ -84,7 +202,7 @@ const generateParagraphSummary = async (messages: Array<{role: 'user' | 'assista
 
 export async function POST(request: Request) {
   try {
-    const { messages, conversationData } = await request.json();
+    const { messages, conversationData, conversationState = 'waiting_for_initial_submission' } = await request.json();
     
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
@@ -103,7 +221,13 @@ export async function POST(request: Request) {
       );
     }
     
-    const stage = getConversationStage(messages);
+    const { nextState, shouldComplete } = getNextConversationState(
+      conversationState as ConversationState,
+      messages,
+      currentData
+    );
+    
+    const systemPrompt = getSystemPromptForState(nextState, messages);
     
     const functions = [
       {
@@ -146,28 +270,10 @@ export async function POST(request: Request) {
       },
     ];
     
-    const systemMessage = {
-      role: 'system',
-      content: `あなたはDX（開発者体験）の失敗事例を収集する共感的なアシスタントです。
-      
-      現在の会話ステージ: ${stage}
-      
-      以下のガイドラインに従って会話を進めてください：
-      
-      - 自然で共感的な会話を心がけ、質問攻めにならないようにしてください
-      - ユーザーの感情に寄り添い、「それは大変でしたね」「なるほど」などの共感的な言葉を使ってください
-      - 会話の流れに合わせて、自然に情報を引き出してください
-      - 「いつ」「どこで」「誰が」などの情報は、会話の中で自然に出てきた場合のみ抽出してください
-      - 最終的には改善方法や「こうすればよかった」というアドバイスを聞くようにしてください
-      
-      ユーザーの回答から適切な情報を抽出し、function callingを使用して情報を返してください。
-      次の質問は自然な流れで、前の回答に関連させて行ってください。`
-    };
-    
     const response = await getOpenAIClient().chat.completions.create({
       model: 'gpt-4o',
       messages: [
-        systemMessage,
+        { role: 'system', content: systemPrompt },
         ...messages.map(m => ({ role: m.role, content: m.content }))
       ],
       functions,
@@ -190,9 +296,7 @@ export async function POST(request: Request) {
     
     const updatedData = { ...currentData, ...extractedData };
     
-    const isComplete = isConversationComplete(messages, updatedData);
-    
-    if (isComplete && !updatedData.paragraph_summary) {
+    if (shouldComplete && !updatedData.paragraph_summary) {
       updatedData.paragraph_summary = await generateParagraphSummary(messages);
       
       if (!updatedData.tags) {
@@ -259,6 +363,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         message: nextMessage,
         conversationData: updatedData,
+        nextState,
         complete: true,
       });
     }
@@ -266,7 +371,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       message: assistantMessage.content || '会話を続けましょう。',
       conversationData: updatedData,
-      complete: isComplete,
+      nextState,
+      complete: shouldComplete,
     });
   } catch (error) {
     console.error('Error in conversation API:', error);
