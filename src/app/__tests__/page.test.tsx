@@ -8,7 +8,14 @@ vi.mock('@/components/Hero', () => ({
 }));
 
 interface CaseListProps {
-  cases: any[];
+  cases: {
+    id: string;
+    title: string;
+    summary: string;
+    tags: string[];
+    image_url: string;
+    created_at: string;
+  }[];
   isLoading: boolean;
   error: string | null;
   hasMore: boolean;
