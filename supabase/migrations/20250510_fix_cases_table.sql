@@ -1,10 +1,13 @@
+
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+DROP TABLE IF EXISTS cases;
 
 CREATE TABLE IF NOT EXISTS cases (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   title TEXT NOT NULL,
   summary TEXT NOT NULL,
-  tags JSONB NOT NULL, -- Changed from TEXT[] to JSONB to match application expectations
+  tags JSONB NOT NULL, -- Using JSONB for tags instead of TEXT[]
   image_url TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
