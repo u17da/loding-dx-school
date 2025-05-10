@@ -93,7 +93,6 @@ export default function SubmitPage() {
           content: 'すみません、エラーが発生しました。もう一度お試しください。' 
         }
       ]);
-      setConversationState(ConversationState.initial);
     } finally {
       setIsLoading(false);
     }
