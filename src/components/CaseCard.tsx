@@ -6,7 +6,7 @@ interface CaseCardProps {
   id: string;
   title: string;
   summary: string;
-  tags: string[];
+  tags: string[] | string; // Can be array or JSON string from Supabase
   imageUrl: string;
 }
 
@@ -14,6 +14,22 @@ const CaseCard: React.FC<CaseCardProps> = ({ id, title, summary, tags, imageUrl 
   const truncatedSummary = summary.length > 100 
     ? `${summary.substring(0, 100)}...` 
     : summary;
+    
+  const parseTags = (): string[] => {
+    if (Array.isArray(tags)) {
+      return tags;
+    }
+    
+    try {
+      const parsedTags = JSON.parse(tags as string);
+      return Array.isArray(parsedTags) ? parsedTags : [];
+    } catch (error) {
+      console.error('Error parsing tags:', error);
+      return [];
+    }
+  };
+  
+  const tagsList = parseTags();
 
   return (
     <Link href={`/cases/${id}`} className="block">
@@ -31,7 +47,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ id, title, summary, tags, imageUrl 
           <h3 className="text-xl font-bold text-primary mb-2">{title}</h3>
           <p className="text-text mb-4">{truncatedSummary}</p>
           <div className="flex flex-wrap gap-2">
-            {tags.map((tag, index) => (
+            {tagsList.map((tag: string, index: number) => (
               <span key={index} className="tag">
                 {tag}
               </span>

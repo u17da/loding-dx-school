@@ -5,7 +5,7 @@ interface Case {
   id: string;
   title: string;
   summary: string;
-  tags: string[];
+  tags: string[] | string; // Can be array or JSON string from Supabase
   image_url: string;
   created_at: string;
 }

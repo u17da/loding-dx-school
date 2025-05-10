@@ -9,7 +9,7 @@ interface Case {
   id: string;
   title: string;
   summary: string;
-  tags: string[];
+  tags: string[] | string; // Can be array or JSON string from Supabase
   image_url: string;
   created_at: string;
 }
@@ -90,6 +90,22 @@ export default function CaseDetailPage() {
     month: 'long',
     day: 'numeric'
   });
+  
+  const parseTags = (): string[] => {
+    if (Array.isArray(caseData.tags)) {
+      return caseData.tags;
+    }
+    
+    try {
+      const parsedTags = JSON.parse(caseData.tags as string);
+      return Array.isArray(parsedTags) ? parsedTags : [];
+    } catch (error) {
+      console.error('Error parsing tags:', error);
+      return [];
+    }
+  };
+  
+  const tagsList = parseTags();
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -121,7 +137,7 @@ export default function CaseDetailPage() {
           </h1>
           
           <div className="flex flex-wrap gap-2 mb-6">
-            {caseData.tags.map((tag, index) => (
+            {tagsList.map((tag: string, index: number) => (
               <span key={index} className="tag">
                 {tag}
               </span>
