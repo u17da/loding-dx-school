@@ -3,6 +3,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import SubmitPage from '../page';
 
+const createMockResponse = <T extends object>(data: T): Promise<Response> => {
+  return Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve(data),
+    text: () => Promise.resolve(JSON.stringify(data)),
+    headers: new Headers(),
+    status: 200,
+    statusText: 'OK',
+  } as unknown as Response);
+};
+
 global.fetch = vi.fn();
 
 vi.mock('@/lib/supabase', () => ({
@@ -19,7 +30,7 @@ describe('SubmitPage with Moderation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     
-    (global.fetch as any).mockReset();
+    vi.mocked(global.fetch).mockReset();
   });
 
   it('displays the submit form initially', () => {
@@ -40,34 +51,25 @@ describe('SubmitPage with Moderation', () => {
   });
 
   it('handles successful moderation and submission', async () => {
-    (global.fetch as any).mockImplementationOnce(() => 
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({
-          title: 'Test Title',
-          summary: 'Test Summary',
-          tags: ['tag1', 'tag2']
-        })
+    vi.mocked(global.fetch).mockImplementationOnce(() => 
+      createMockResponse({
+        title: 'Test Title',
+        summary: 'Test Summary',
+        tags: ['tag1', 'tag2']
       })
     );
     
-    (global.fetch as any).mockImplementationOnce(() => 
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({
-          imageUrl: 'https://example.com/image.jpg'
-        })
+    vi.mocked(global.fetch).mockImplementationOnce(() => 
+      createMockResponse({
+        imageUrl: 'https://example.com/image.jpg'
       })
     );
     
-    (global.fetch as any).mockImplementationOnce(() => 
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({
-          flagged: false,
-          categories: {},
-          category_scores: {}
-        })
+    vi.mocked(global.fetch).mockImplementationOnce(() => 
+      createMockResponse({
+        flagged: false,
+        categories: {},
+        category_scores: {}
       })
     );
     
@@ -97,34 +99,25 @@ describe('SubmitPage with Moderation', () => {
   });
 
   it('handles failed moderation and shows message', async () => {
-    (global.fetch as any).mockImplementationOnce(() => 
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({
-          title: 'Test Title',
-          summary: 'Test Summary with inappropriate content',
-          tags: ['tag1', 'tag2']
-        })
+    vi.mocked(global.fetch).mockImplementationOnce(() => 
+      createMockResponse({
+        title: 'Test Title',
+        summary: 'Test Summary with inappropriate content',
+        tags: ['tag1', 'tag2']
       })
     );
     
-    (global.fetch as any).mockImplementationOnce(() => 
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({
-          imageUrl: 'https://example.com/image.jpg'
-        })
+    vi.mocked(global.fetch).mockImplementationOnce(() => 
+      createMockResponse({
+        imageUrl: 'https://example.com/image.jpg'
       })
     );
     
-    (global.fetch as any).mockImplementationOnce(() => 
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({
-          flagged: true,
-          categories: { violence: true },
-          category_scores: { violence: 0.9 }
-        })
+    vi.mocked(global.fetch).mockImplementationOnce(() => 
+      createMockResponse({
+        flagged: true,
+        categories: { violence: true },
+        category_scores: { violence: 0.9 }
       })
     );
     
@@ -152,27 +145,21 @@ describe('SubmitPage with Moderation', () => {
   });
 
   it('handles moderation API errors gracefully', async () => {
-    (global.fetch as any).mockImplementationOnce(() => 
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({
-          title: 'Test Title',
-          summary: 'Test Summary',
-          tags: ['tag1', 'tag2']
-        })
+    vi.mocked(global.fetch).mockImplementationOnce(() => 
+      createMockResponse({
+        title: 'Test Title',
+        summary: 'Test Summary',
+        tags: ['tag1', 'tag2']
       })
     );
     
-    (global.fetch as any).mockImplementationOnce(() => 
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({
-          imageUrl: 'https://example.com/image.jpg'
-        })
+    vi.mocked(global.fetch).mockImplementationOnce(() => 
+      createMockResponse({
+        imageUrl: 'https://example.com/image.jpg'
       })
     );
     
-    (global.fetch as any).mockImplementationOnce(() => 
+    vi.mocked(global.fetch).mockImplementationOnce(() => 
       Promise.reject(new Error('API Error'))
     );
     

@@ -1,6 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST } from '../moderate/route';
 import { NextResponse } from 'next/server';
+import OpenAI from 'openai';
+
+const createMockResponse = <T extends object>(data: T): Promise<Response> => {
+  return Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve(data),
+    text: () => Promise.resolve(JSON.stringify(data)),
+    headers: new Headers(),
+    status: 200,
+    statusText: 'OK',
+  } as unknown as Response);
+};
 
 vi.mock('openai', () => {
   return {
@@ -71,7 +83,7 @@ describe('Moderation API Route', () => {
       body: JSON.stringify({})
     });
 
-    const response = await POST(request);
+    await POST(request);
     
     expect(NextResponse.json).toHaveBeenCalledWith(
       { error: 'Content text is required' },
@@ -88,7 +100,7 @@ describe('Moderation API Route', () => {
       body: JSON.stringify({ content: 'This is safe content.' })
     });
 
-    const response = await POST(request);
+    await POST(request);
     
     expect(NextResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -108,7 +120,7 @@ describe('Moderation API Route', () => {
       body: JSON.stringify({ content: 'This contains violence and should be flagged.' })
     });
 
-    const response = await POST(request);
+    await POST(request);
     
     expect(NextResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -121,12 +133,9 @@ describe('Moderation API Route', () => {
   });
 
   it('handles API errors gracefully', async () => {
-    const originalMock = vi.mocked(require('openai').default);
-    originalMock.mockImplementationOnce(() => ({
-      moderations: {
-        create: vi.fn().mockRejectedValue(new Error('API Error'))
-      }
-    }));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    
+    vi.spyOn(global, 'fetch').mockRejectedValueOnce(new Error('API Error'));
 
     const request = new Request('http://localhost:3000/api/moderate', {
       method: 'POST',
@@ -136,7 +145,7 @@ describe('Moderation API Route', () => {
       body: JSON.stringify({ content: 'Test content' })
     });
 
-    const response = await POST(request);
+    await POST(request);
     
     expect(NextResponse.json).toHaveBeenCalledWith(
       { error: 'Failed to process the moderation request' },
