@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 export const getSupabase = () => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -13,4 +13,4 @@ export const getSupabase = () => {
 
 export const supabase = typeof window !== 'undefined' 
   ? getSupabase() 
-  : null as any; // Only initialize on client-side
+  : null as unknown as SupabaseClient; // Only initialize on client-side
