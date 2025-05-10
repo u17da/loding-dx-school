@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { ConversationState } from '@/types/conversationState';
 
 type ConversationData = {
   when?: string;
@@ -25,44 +26,13 @@ const getOpenAIClient = () => {
   });
 };
 
-type ConversationStage = 
-  | 'initial' 
-  | 'gathering_details' 
-  | 'exploring_impact' 
-  | 'understanding_cause' 
-  | 'seeking_suggestions' 
-  | 'summarizing';
-  
-type ClientConversationState = 
-  | 'waiting_for_initial_submission'
-  | 'asking_for_additional_details'
-  | 'asking_for_suggestions'
-  | 'conversation_completed';
-  
-const mapApiToClientState = (stage: ConversationStage): ClientConversationState => {
-  switch (stage) {
-    case 'initial':
-      return 'waiting_for_initial_submission';
-    case 'gathering_details':
-    case 'exploring_impact':
-    case 'understanding_cause':
-      return 'asking_for_additional_details';
-    case 'seeking_suggestions':
-      return 'asking_for_suggestions';
-    case 'summarizing':
-      return 'conversation_completed';
-  }
-};
-
-const getConversationStage = (messages: Array<{role: string, content: string}>): ConversationStage => {
+const getConversationStage = (messages: Array<{role: string, content: string}>): ConversationState => {
   const messageCount = messages.filter(m => m.role === 'user').length;
   
-  if (messageCount <= 1) return 'initial';
-  if (messageCount <= 3) return 'gathering_details';
-  if (messageCount <= 5) return 'exploring_impact';
-  if (messageCount <= 7) return 'understanding_cause';
-  if (messageCount <= 9) return 'seeking_suggestions';
-  return 'summarizing';
+  if (messageCount <= 1) return ConversationState.initial;
+  if (messageCount <= 3) return ConversationState.gathering_details;
+  if (messageCount <= 9) return ConversationState.seeking_suggestions;
+  return ConversationState.summarizing;
 };
 
 const isConversationComplete = (messages: Array<{role: string, content: string}>, conversationData: ConversationData): boolean => {
@@ -277,30 +247,26 @@ export async function POST(request: Request) {
       
       const nextMessage = `情報が揃いました。以下の内容で送信してよろしいですか？\n\n${updatedData.paragraph_summary}`;
       
-      const clientState: ClientConversationState = 
-        typeof conversationState === 'string' && 
-        ['waiting_for_initial_submission', 'asking_for_additional_details', 'asking_for_suggestions', 'conversation_completed'].includes(conversationState as string)
-          ? conversationState as ClientConversationState
-          : 'conversation_completed';
+      const state = typeof conversationState === 'string' 
+        ? conversationState as ConversationState 
+        : ConversationState.summarizing;
           
       return NextResponse.json({
         message: nextMessage,
         conversationData: updatedData,
-        conversationState: clientState,
+        conversationState: state,
         complete: true,
       });
     }
     
-    const clientState: ClientConversationState = 
-      typeof conversationState === 'string' && 
-      ['waiting_for_initial_submission', 'asking_for_additional_details', 'asking_for_suggestions', 'conversation_completed'].includes(conversationState as string)
-        ? conversationState as ClientConversationState
-        : mapApiToClientState(stage as ConversationStage);
+    const state = typeof conversationState === 'string' 
+      ? conversationState as ConversationState 
+      : stage as ConversationState;
         
     return NextResponse.json({
       message: assistantMessage.content || '会話を続けましょう。',
       conversationData: updatedData,
-      conversationState: clientState,
+      conversationState: state,
       complete: isComplete,
     });
   } catch (error) {

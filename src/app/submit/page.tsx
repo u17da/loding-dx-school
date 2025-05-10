@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { getSupabase } from '@/lib/supabase';
+import { ConversationState } from '@/types/conversationState';
 
 interface ConversationData {
   when?: string;
@@ -23,12 +24,6 @@ type Message = {
   content: string;
 };
 
-type ConversationState = 
-  | 'waiting_for_initial_submission'
-  | 'asking_for_additional_details'
-  | 'asking_for_suggestions'
-  | 'conversation_completed';
-
 export default function SubmitPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -39,7 +34,7 @@ export default function SubmitPage() {
   const [moderationMessage, setModerationMessage] = useState('');
   const [imageGenerating, setImageGenerating] = useState(false);
   const [initialInput, setInitialInput] = useState('');
-  const [conversationState, setConversationState] = useState<ConversationState>('waiting_for_initial_submission');
+  const [conversationState, setConversationState] = useState<ConversationState>(ConversationState.initial);
   const [currentInput, setCurrentInput] = useState('');
   const [assistantTyping, setAssistantTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -55,7 +50,7 @@ export default function SubmitPage() {
     setConversation([userMessage]);
     setInitialInput('');
     setIsLoading(true);
-    setConversationState('asking_for_additional_details');
+    setConversationState(ConversationState.gathering_details);
     
     try {
       const response = await fetch('/api/conversation', {
@@ -99,7 +94,7 @@ export default function SubmitPage() {
           content: 'すみません、エラーが発生しました。もう一度お試しください。' 
         }
       ]);
-      setConversationState('waiting_for_initial_submission');
+      setConversationState(ConversationState.initial);
     } finally {
       setIsLoading(false);
     }
@@ -108,7 +103,7 @@ export default function SubmitPage() {
   const sendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     
-    if (!currentInput.trim() || isLoading || conversationState === 'conversation_completed') return;
+    if (!currentInput.trim() || isLoading || conversationState === ConversationState.summarizing) return;
     
     const userMessage: Message = { role: 'user', content: currentInput };
     setConversation(prev => [...prev, userMessage]);
@@ -294,7 +289,7 @@ export default function SubmitPage() {
     setModerationMessage('');
     setInitialInput('');
     setCurrentInput('');
-    setConversationState('waiting_for_initial_submission');
+    setConversationState(ConversationState.initial);
   };
 
   return (
@@ -307,7 +302,7 @@ export default function SubmitPage() {
             あなたの『これは失敗だった…。』という事例をざっくりで良いので教えてください。内容を深掘りさせていただき、こちらでタイトルや画像などを生成しちゃいます。
           </p>
           
-          {conversationState === 'waiting_for_initial_submission' ? (
+          {conversationState === ConversationState.initial ? (
             <div className="mb-6">
               <textarea
                 value={initialInput}
@@ -364,13 +359,13 @@ export default function SubmitPage() {
                   type="text"
                   value={currentInput}
                   onChange={(e) => setCurrentInput(e.target.value)}
-                  disabled={isLoading || conversationState === 'conversation_completed'}
-                  placeholder={conversationState === 'conversation_completed' ? "会話が完了しました" : "メッセージを入力..."}
+                  disabled={isLoading || conversationState === ConversationState.summarizing}
+                  placeholder={conversationState === ConversationState.summarizing ? "会話が完了しました" : "メッセージを入力..."}
                   className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 <button
                   type="submit"
-                  disabled={!currentInput.trim() || isLoading || conversationState === 'conversation_completed'}
+                  disabled={!currentInput.trim() || isLoading || conversationState === ConversationState.summarizing}
                   className="bg-primary text-white p-2 rounded-lg disabled:opacity-50"
                 >
                   送信
