@@ -11,7 +11,6 @@ interface ExampleType {
   id: string;
   title: string;
 }
-const example: ExampleType = { id: "1", title: "test" };
 
 vi.mock('@/components/CaseList', () => ({
   default: ({ cases, isLoading, error, hasMore }: {
