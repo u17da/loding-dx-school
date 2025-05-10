@@ -108,23 +108,23 @@ export default function SubmitPage() {
 
   return (
     <div className="container mx-auto px-4 py-12">
-      <h1 className="text-3xl font-bold mb-8 text-center">Submit a DX Failure Scenario</h1>
+      <h1 className="text-4xl font-bold mb-8 text-center text-primary">Submit a DX Failure Scenario</h1>
       
       {step === 'input' && (
         <div className="max-w-2xl mx-auto">
-          <p className="mb-6 text-gray-600">
+          <p className="mb-6 text-text">
             Describe a developer experience (DX) failure scenario you&apos;ve encountered. Our AI will analyze it and generate a structured case.
           </p>
           
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="scenario" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="scenario" className="block text-sm font-medium text-text mb-1">
                 DX Failure Scenario
               </label>
               <textarea
                 id="scenario"
                 rows={6}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
                 placeholder="Describe the DX failure scenario in detail..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -139,7 +139,7 @@ export default function SubmitPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+              className="btn w-full disabled:opacity-50"
             >
               {isLoading ? 'Processing...' : 'Generate Case'}
             </button>
@@ -149,8 +149,8 @@ export default function SubmitPage() {
       
       {step === 'review' && generatedCase && (
         <div className="max-w-2xl mx-auto">
-          <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-            <h2 className="text-2xl font-bold mb-4">{generatedCase.title}</h2>
+          <div className="card mb-6">
+            <h2 className="text-2xl font-bold mb-4 text-primary">{generatedCase.title}</h2>
             
             <div className="mb-6 relative h-64 w-full">
               <Image 
@@ -158,22 +158,22 @@ export default function SubmitPage() {
                 alt={generatedCase.title}
                 fill
                 sizes="(max-width: 768px) 100vw, 768px"
-                className="object-cover rounded-md"
+                className="object-cover rounded-lg"
               />
             </div>
             
             <div className="mb-4">
-              <h3 className="text-lg font-semibold mb-2">Summary</h3>
-              <p className="text-gray-700">{generatedCase.summary}</p>
+              <h3 className="text-lg font-semibold mb-2 text-primary">Summary</h3>
+              <p className="text-text">{generatedCase.summary}</p>
             </div>
             
             <div>
-              <h3 className="text-lg font-semibold mb-2">Tags</h3>
+              <h3 className="text-lg font-semibold mb-2 text-primary">Tags</h3>
               <div className="flex flex-wrap gap-2">
                 {generatedCase.tags.map((tag, index) => (
                   <span 
                     key={index}
-                    className="bg-blue-100 text-blue-800 px-2 py-1 rounded-md text-sm"
+                    className="tag"
                   >
                     {tag}
                   </span>
@@ -190,14 +190,14 @@ export default function SubmitPage() {
             <button
               onClick={handleReset}
               disabled={isLoading}
-              className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50"
+              className="flex-1 bg-gray-200 text-text py-2 px-4 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50"
             >
               Start Over
             </button>
             <button
               onClick={handleConfirm}
               disabled={isLoading}
-              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+              className="flex-1 btn disabled:opacity-50"
             >
               {isLoading ? 'Saving...' : 'Confirm & Submit'}
             </button>
@@ -207,14 +207,14 @@ export default function SubmitPage() {
       
       {step === 'success' && (
         <div className="max-w-2xl mx-auto text-center">
-          <div className="bg-green-100 text-green-800 p-6 rounded-lg mb-6">
+          <div className="bg-accent bg-opacity-20 text-primary p-6 rounded-lg mb-6">
             <h2 className="text-2xl font-bold mb-2">Submission Successful!</h2>
             <p>Your DX failure scenario has been submitted successfully.</p>
           </div>
           
           <button
             onClick={handleReset}
-            className="bg-blue-600 text-white py-2 px-6 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="btn"
           >
             Submit Another Case
           </button>
