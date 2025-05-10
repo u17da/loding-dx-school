@@ -259,6 +259,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         message: nextMessage,
         conversationData: updatedData,
+        conversationState: conversationState || 'conversation_completed',
         complete: true,
       });
     }
@@ -266,6 +267,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       message: assistantMessage.content || '会話を続けましょう。',
       conversationData: updatedData,
+      conversationState: conversationState || stage,
       complete: isComplete,
     });
   } catch (error) {
