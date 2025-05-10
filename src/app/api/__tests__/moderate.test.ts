@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST } from '../moderate/route';
 import { NextResponse } from 'next/server';
+// OpenAI is used in the mocked implementation
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import OpenAI from 'openai';
 
+// Helper function is not directly used but kept for consistency with other tests
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const createMockResponse = <T extends object>(data: T): Promise<Response> => {
   return Promise.resolve({
     ok: true,
