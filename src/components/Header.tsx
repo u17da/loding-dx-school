@@ -17,6 +17,9 @@ const Header = () => {
           <Link href="#" className="text-gray-700 hover:text-blue-600 transition-colors">
             料金
           </Link>
+          <Link href="/submit" className="text-gray-700 hover:text-blue-600 transition-colors">
+            事例提出
+          </Link>
           <Link href="#" className="text-gray-700 hover:text-blue-600 transition-colors">
             お問い合わせ
           </Link>
