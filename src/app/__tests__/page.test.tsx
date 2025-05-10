@@ -7,23 +7,19 @@ vi.mock('@/components/Hero', () => ({
   default: () => React.createElement('div', { 'data-testid': 'hero' }, 'Hero Component')
 }));
 
-interface CaseListProps {
-  cases: {
-    id: string;
-    title: string;
-    summary: string;
-    tags: string[];
-    image_url: string;
-    created_at: string;
-  }[];
-  isLoading: boolean;
-  error: string | null;
-  hasMore: boolean;
-  onLoadMore: () => void;
+interface ExampleType {
+  id: string;
+  title: string;
 }
+const example: ExampleType = { id: "1", title: "test" };
 
 vi.mock('@/components/CaseList', () => ({
-  default: ({ cases, isLoading, error, hasMore }: CaseListProps) => 
+  default: ({ cases, isLoading, error, hasMore }: {
+    cases: Array<{id: string, title: string}>;
+    isLoading: boolean;
+    error: string | null;
+    hasMore: boolean;
+  }) => 
     React.createElement('div', { 'data-testid': 'case-list' }, 
       `CaseList: ${cases.length} cases, Loading: ${isLoading}, Error: ${error}, HasMore: ${hasMore}`)
 }));
