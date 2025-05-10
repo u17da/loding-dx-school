@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const getOpenAIClient = () => {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY environment variable is missing');
+  }
+  
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+};
 
 export async function POST(request: Request) {
   try {
@@ -16,7 +22,7 @@ export async function POST(request: Request) {
       );
     }
     
-    const promptResponse = await openai.chat.completions.create({
+    const promptResponse = await getOpenAIClient().chat.completions.create({
       model: 'gpt-4o',
       messages: [
         {
@@ -68,7 +74,7 @@ export async function POST(request: Request) {
     }
     
     try {
-      const imageResponse = await openai.images.generate({
+      const imageResponse = await getOpenAIClient().images.generate({
         model: 'dall-e-3',
         prompt: imagePrompt,
         n: 1,
