@@ -84,7 +84,7 @@ const generateParagraphSummary = async (messages: Array<{role: 'user' | 'assista
 
 export async function POST(request: Request) {
   try {
-    const { messages, conversationData } = await request.json();
+    const { messages, conversationData, conversationState } = await request.json();
     
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
@@ -103,7 +103,7 @@ export async function POST(request: Request) {
       );
     }
     
-    const stage = getConversationStage(messages);
+    const stage = conversationState || getConversationStage(messages);
     
     const functions = [
       {
