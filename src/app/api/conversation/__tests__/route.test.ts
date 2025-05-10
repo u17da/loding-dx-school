@@ -3,6 +3,21 @@ import { NextRequest } from 'next/server';
 import { POST } from '../route';
 import OpenAI from 'openai';
 
+type MockRequestJson = {
+  mockResolvedValue: (value: Record<string, unknown>) => void;
+};
+
+type OpenAIResponse = {
+  choices: Array<{
+    message: {
+      function_call: {
+        name: string;
+        arguments: string;
+      };
+    };
+  }>;
+};
+
 const mockCreate = vi.fn();
 const mockOpenAI = {
   chat: {
@@ -28,11 +43,11 @@ describe('Conversation API Route', () => {
     
     mockRequest = {
       json: vi.fn(),
-    } as unknown as NextRequest;
+    } as Partial<NextRequest> as NextRequest;
   });
   
   it('returns 400 if messages array is missing', async () => {
-    (mockRequest.json as any).mockResolvedValue({});
+    (mockRequest.json as unknown as MockRequestJson).mockResolvedValue({});
     
     const response = await POST(mockRequest);
     const data = await response.json();
@@ -42,7 +57,7 @@ describe('Conversation API Route', () => {
   });
   
   it('returns 400 if last message is not from user', async () => {
-    (mockRequest.json as any).mockResolvedValue({
+    (mockRequest.json as unknown as MockRequestJson).mockResolvedValue({
       messages: [
         { role: 'assistant', content: 'Hello' }
       ]
@@ -56,7 +71,7 @@ describe('Conversation API Route', () => {
   });
   
   it('extracts data from conversation and returns next question', async () => {
-    (mockRequest.json as any).mockResolvedValue({
+    (mockRequest.json as unknown as MockRequestJson).mockResolvedValue({
       messages: [
         { role: 'assistant', content: 'どのような失敗だったのか教えてください。' },
         { role: 'user', content: 'テスト用の失敗事例です' }
@@ -64,7 +79,7 @@ describe('Conversation API Route', () => {
       conversationData: {}
     });
     
-    const mockOpenAIResponse = {
+    const mockOpenAIResponse: OpenAIResponse = {
       choices: [
         {
           message: {
@@ -79,7 +94,7 @@ describe('Conversation API Route', () => {
       ]
     };
     
-    (OpenAI as any).mock.results[0].value.chat.completions.create.mockResolvedValue(mockOpenAIResponse);
+    mockCreate.mockResolvedValue(mockOpenAIResponse);
     
     const response = await POST(mockRequest);
     const data = await response.json();
@@ -90,7 +105,7 @@ describe('Conversation API Route', () => {
     expect(data.complete).toBe(false);
     
     expect(OpenAI).toHaveBeenCalledWith({ apiKey: 'test-api-key' });
-    expect((OpenAI as any).mock.results[0].value.chat.completions.create).toHaveBeenCalledWith(
+    expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         model: 'gpt-4o',
         functions: expect.any(Array),
@@ -110,7 +125,7 @@ describe('Conversation API Route', () => {
       suggestions: '自動化ツールの導入'
     };
     
-    (mockRequest.json as any).mockResolvedValue({
+    (mockRequest.json as unknown as MockRequestJson).mockResolvedValue({
       messages: [
         { role: 'assistant', content: 'アドバイスを教えてください。' },
         { role: 'user', content: '自動化ツールの導入が必要です' }
@@ -125,7 +140,7 @@ describe('Conversation API Route', () => {
       }
     });
     
-    const mockOpenAIResponse = {
+    const mockOpenAIResponse: OpenAIResponse = {
       choices: [
         {
           message: {
@@ -140,7 +155,7 @@ describe('Conversation API Route', () => {
       ]
     };
     
-    const mockTagsResponse = {
+    const mockTagsResponse: OpenAIResponse = {
       choices: [
         {
           message: {
@@ -156,9 +171,8 @@ describe('Conversation API Route', () => {
       ]
     };
     
-    const openAIInstance = (OpenAI as any).mock.results[0].value;
-    openAIInstance.chat.completions.create.mockResolvedValueOnce(mockOpenAIResponse);
-    openAIInstance.chat.completions.create.mockResolvedValueOnce(mockTagsResponse);
+    mockCreate.mockResolvedValueOnce(mockOpenAIResponse);
+    mockCreate.mockResolvedValueOnce(mockTagsResponse);
     
     const response = await POST(mockRequest);
     const data = await response.json();
@@ -172,11 +186,11 @@ describe('Conversation API Route', () => {
     });
     expect(data.complete).toBe(true);
     
-    expect(openAIInstance.chat.completions.create).toHaveBeenCalledTimes(2);
+    expect(mockCreate).toHaveBeenCalledTimes(2);
   });
   
   it('handles OpenAI API errors gracefully', async () => {
-    (mockRequest.json as any).mockResolvedValue({
+    (mockRequest.json as unknown as MockRequestJson).mockResolvedValue({
       messages: [
         { role: 'assistant', content: 'どのような失敗だったのか教えてください。' },
         { role: 'user', content: 'テスト用の失敗事例です' }
@@ -184,9 +198,7 @@ describe('Conversation API Route', () => {
       conversationData: {}
     });
     
-    (OpenAI as any).mock.results[0].value.chat.completions.create.mockRejectedValue(
-      new Error('OpenAI API Error')
-    );
+    mockCreate.mockRejectedValue(new Error('OpenAI API Error'));
     
     const response = await POST(mockRequest);
     const data = await response.json();

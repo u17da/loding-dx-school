@@ -2,7 +2,6 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import SubmitPage from '../page';
-import ConversationUI from '@/components/ConversationUI';
 
 vi.mock('@/components/ConversationUI', () => ({
   default: vi.fn(({ onComplete }) => {
@@ -45,7 +44,7 @@ const createMockResponse = <T extends object>(data: T): Promise<Response> => {
     headers: new Headers(),
     status: 200,
     statusText: 'OK',
-  } as unknown as Response);
+  } as Partial<Response> as Response);
 };
 
 vi.mock('@/lib/supabase', () => ({
@@ -62,7 +61,7 @@ describe('SubmitPage with Conversational UI', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     
-    (global.fetch as any).mockImplementation((url: string) => {
+    (global.fetch as unknown as { mockImplementation: (callback: (url: string) => Promise<Response>) => void }).mockImplementation((url: string) => {
       if (url === '/api/generate-image-from-summary') {
         return createMockResponse({ imageUrl: 'https://example.com/image.jpg' });
       }
@@ -143,7 +142,7 @@ describe('SubmitPage with Conversational UI', () => {
   });
   
   it('handles moderation failure correctly', async () => {
-    (global.fetch as any).mockImplementation((url: string) => {
+    (global.fetch as unknown as { mockImplementation: (callback: (url: string) => Promise<Response>) => void }).mockImplementation((url: string) => {
       if (url === '/api/generate-image-from-summary') {
         return createMockResponse({ imageUrl: 'https://example.com/image.jpg' });
       }
@@ -179,7 +178,7 @@ describe('SubmitPage with Conversational UI', () => {
   });
   
   it('handles image generation failure correctly', async () => {
-    (global.fetch as any).mockImplementation((url: string) => {
+    (global.fetch as unknown as { mockImplementation: (callback: (url: string) => Promise<Response>) => void }).mockImplementation((url: string) => {
       if (url === '/api/generate-image-from-summary') {
         return Promise.resolve({
           ok: false,

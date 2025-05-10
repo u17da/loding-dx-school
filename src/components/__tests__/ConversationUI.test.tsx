@@ -13,7 +13,7 @@ const createMockResponse = <T extends object>(data: T): Promise<Response> => {
     headers: new Headers(),
     status: 200,
     statusText: 'OK',
-  } as unknown as Response);
+  } as Partial<Response> as Response);
 };
 
 describe('ConversationUI', () => {
@@ -22,7 +22,10 @@ describe('ConversationUI', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     
-    (global.fetch as any).mockImplementation((url: string) => {
+    (global.fetch as unknown as { 
+  mockImplementation: (callback: (url: string) => Promise<Response>) => void;
+  mockImplementationOnce: (callback: ((url: string) => Promise<Response>) | (() => Promise<Response>)) => void;
+}).mockImplementation((url: string) => {
       if (url === '/api/conversation') {
         return createMockResponse({
           message: 'その失敗はいつ頃起きましたか？',
@@ -66,7 +69,10 @@ describe('ConversationUI', () => {
   });
   
   it('completes the conversation when API returns complete=true', async () => {
-    (global.fetch as any).mockImplementationOnce((url: string) => {
+    (global.fetch as unknown as { 
+  mockImplementation: (callback: (url: string) => Promise<Response>) => void;
+  mockImplementationOnce: (callback: ((url: string) => Promise<Response>) | (() => Promise<Response>)) => void;
+}).mockImplementationOnce((url: string) => {
       if (url === '/api/conversation') {
         return createMockResponse({
           message: '情報が揃いました。以下の内容で送信してよろしいですか？',
@@ -122,7 +128,10 @@ describe('ConversationUI', () => {
   });
   
   it('handles API errors gracefully', async () => {
-    (global.fetch as any).mockImplementationOnce(() => Promise.reject(new Error('API Error')));
+    (global.fetch as unknown as { 
+  mockImplementation: (callback: (url: string) => Promise<Response>) => void;
+  mockImplementationOnce: (callback: ((url: string) => Promise<Response>) | (() => Promise<Response>)) => void;
+}).mockImplementationOnce(() => Promise.reject(new Error('API Error')));
     
     render(<ConversationUI onComplete={mockOnComplete} />);
     
@@ -138,7 +147,10 @@ describe('ConversationUI', () => {
   });
   
   it('shows loading state while waiting for API response', async () => {
-    (global.fetch as any).mockImplementationOnce(() => new Promise(resolve => {
+    (global.fetch as unknown as { 
+  mockImplementation: (callback: (url: string) => Promise<Response>) => void;
+  mockImplementationOnce: (callback: ((url: string) => Promise<Response>) | (() => Promise<Response>)) => void;
+}).mockImplementationOnce(() => new Promise<Response>(resolve => {
       setTimeout(() => {
         resolve(createMockResponse({
           message: 'その失敗はいつ頃起きましたか？',
