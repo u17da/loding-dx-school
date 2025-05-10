@@ -32,6 +32,27 @@ type ConversationStage =
   | 'understanding_cause' 
   | 'seeking_suggestions' 
   | 'summarizing';
+  
+type ClientConversationState = 
+  | 'waiting_for_initial_submission'
+  | 'asking_for_additional_details'
+  | 'asking_for_suggestions'
+  | 'conversation_completed';
+  
+const mapApiToClientState = (stage: ConversationStage): ClientConversationState => {
+  switch (stage) {
+    case 'initial':
+      return 'waiting_for_initial_submission';
+    case 'gathering_details':
+    case 'exploring_impact':
+    case 'understanding_cause':
+      return 'asking_for_additional_details';
+    case 'seeking_suggestions':
+      return 'asking_for_suggestions';
+    case 'summarizing':
+      return 'conversation_completed';
+  }
+};
 
 const getConversationStage = (messages: Array<{role: string, content: string}>): ConversationStage => {
   const messageCount = messages.filter(m => m.role === 'user').length;
@@ -256,18 +277,30 @@ export async function POST(request: Request) {
       
       const nextMessage = `情報が揃いました。以下の内容で送信してよろしいですか？\n\n${updatedData.paragraph_summary}`;
       
+      const clientState: ClientConversationState = 
+        typeof conversationState === 'string' && 
+        ['waiting_for_initial_submission', 'asking_for_additional_details', 'asking_for_suggestions', 'conversation_completed'].includes(conversationState as string)
+          ? conversationState as ClientConversationState
+          : 'conversation_completed';
+          
       return NextResponse.json({
         message: nextMessage,
         conversationData: updatedData,
-        conversationState: conversationState || 'conversation_completed',
+        conversationState: clientState,
         complete: true,
       });
     }
     
+    const clientState: ClientConversationState = 
+      typeof conversationState === 'string' && 
+      ['waiting_for_initial_submission', 'asking_for_additional_details', 'asking_for_suggestions', 'conversation_completed'].includes(conversationState as string)
+        ? conversationState as ClientConversationState
+        : mapApiToClientState(stage as ConversationStage);
+        
     return NextResponse.json({
       message: assistantMessage.content || '会話を続けましょう。',
       conversationData: updatedData,
-      conversationState: conversationState || stage,
+      conversationState: clientState,
       complete: isComplete,
     });
   } catch (error) {
