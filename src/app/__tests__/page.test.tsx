@@ -7,10 +7,6 @@ vi.mock('@/components/Hero', () => ({
   default: () => React.createElement('div', { 'data-testid': 'hero' }, 'Hero Component')
 }));
 
-interface ExampleType {
-  id: string;
-  title: string;
-}
 
 vi.mock('@/components/CaseList', () => ({
   default: ({ cases, isLoading, error, hasMore }: {
