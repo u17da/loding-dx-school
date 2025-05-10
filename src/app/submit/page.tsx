@@ -84,17 +84,34 @@ export default function SubmitPage() {
     setIsLoading(true);
     
     try {
+      const supabaseCase = {
+        ...generatedCase,
+        tags: JSON.stringify(generatedCase.tags)
+      };
+      
+      console.log('Submitting to Supabase:', supabaseCase);
+      
       const supabase = getSupabase();
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('cases')
-        .insert([generatedCase]);
+        .insert([supabaseCase])
+        .select();
       
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
+        throw error;
+      }
       
+      console.log('Successfully saved to Supabase:', data);
       setStep('success');
     } catch (err) {
       console.error('Error saving to Supabase:', err);
-      setError('Failed to save your submission. Please try again.');
+      setError(`Failed to save your submission: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
