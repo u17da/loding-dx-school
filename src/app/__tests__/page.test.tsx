@@ -1,14 +1,22 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import Home from '../page';
 
 vi.mock('@/components/Hero', () => ({
   default: () => React.createElement('div', { 'data-testid': 'hero' }, 'Hero Component')
 }));
 
+interface CaseListProps {
+  cases: any[];
+  isLoading: boolean;
+  error: string | null;
+  hasMore: boolean;
+  onLoadMore: () => void;
+}
+
 vi.mock('@/components/CaseList', () => ({
-  default: ({ cases, isLoading, error, hasMore, onLoadMore }) => 
+  default: ({ cases, isLoading, error, hasMore }: CaseListProps) => 
     React.createElement('div', { 'data-testid': 'case-list' }, 
       `CaseList: ${cases.length} cases, Loading: ${isLoading}, Error: ${error}, HasMore: ${hasMore}`)
 }));
