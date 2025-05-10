@@ -32,7 +32,6 @@ export default function SubmitPage() {
   const [conversation, setConversation] = useState<Message[]>([]);
   const [moderationFailed, setModerationFailed] = useState(false);
   const [moderationMessage, setModerationMessage] = useState('');
-  const [imageGenerating, setImageGenerating] = useState(false);
   const [initialInput, setInitialInput] = useState('');
   const [conversationState, setConversationState] = useState<ConversationState>(ConversationState.initial);
   const [currentInput, setCurrentInput] = useState('');
@@ -60,7 +59,7 @@ export default function SubmitPage() {
         },
         body: JSON.stringify({
           messages: [userMessage],
-          conversationState: 'waiting_for_initial_submission',
+          conversationState: ConversationState.initial,
         }),
       });
       
@@ -163,7 +162,7 @@ export default function SubmitPage() {
   const handleConversationComplete = async (data: ConversationData, messages: Message[]) => {
     setConversationData(data);
     setConversation(messages);
-    setImageGenerating(true);
+    setIsLoading(true);
     
     try {
       const imageResponse = await fetch('/api/generate-image-from-summary', {
@@ -195,7 +194,7 @@ export default function SubmitPage() {
       console.error('Error generating image:', err);
       setError('画像の生成中にエラーが発生しました。もう一度お試しください。');
     } finally {
-      setImageGenerating(false);
+      setIsLoading(false);
     }
   };
 
