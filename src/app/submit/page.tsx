@@ -78,12 +78,47 @@ export default function SubmitPage() {
     }
   };
 
+  const [moderationFailed, setModerationFailed] = useState(false);
+  const [moderationMessage, setModerationMessage] = useState('');
+
   const handleConfirm = async () => {
     if (!generatedCase) return;
     
     setIsLoading(true);
+    setModerationFailed(false);
+    setModerationMessage('');
     
     try {
+      const moderationResponse = await fetch('/api/moderate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content: generatedCase.summary }),
+      });
+      
+      if (!moderationResponse.ok) {
+        throw new Error('Failed to check content moderation');
+      }
+      
+      const moderationResult = await moderationResponse.json();
+      
+      if (moderationResult.flagged) {
+        console.log('Content flagged by moderation:', moderationResult);
+        
+        const supabase = getSupabase();
+        await supabase
+          .from('moderation_logs')
+          .insert([{
+            content: generatedCase.summary,
+            moderation_result: moderationResult
+          }]);
+        
+        setModerationFailed(true);
+        setModerationMessage('申し訳ありませんが、投稿内容がガイドラインに違反している可能性があります。内容を見直して再度お試しください。');
+        return;
+      }
+      
       const supabaseCase = {
         ...generatedCase,
         tags: JSON.stringify(generatedCase.tags)
@@ -202,6 +237,13 @@ export default function SubmitPage() {
           
           {error && (
             <div className="text-red-500 text-sm mb-4">{error}</div>
+          )}
+          
+          {moderationFailed && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+              <p className="font-medium">コンテンツモデレーションに失敗しました</p>
+              <p className="text-sm">{moderationMessage}</p>
+            </div>
           )}
           
           <div className="flex space-x-4">
