@@ -14,9 +14,15 @@ type ConversationData = {
   title?: string;
 };
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const getOpenAIClient = () => {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY environment variable is missing');
+  }
+  
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+};
 
 const determineNextQuestion = (conversationData: ConversationData): string => {
   if (!conversationData.summary) {
@@ -133,7 +139,7 @@ export async function POST(request: Request) {
       content: `あなたはDX（開発者体験）の失敗事例を収集するアシスタントです。ユーザーとの会話から情報を抽出し、構造化されたデータを作成してください。現在は「${currentField}」の情報を収集しています。ユーザーの回答から適切な情報を抽出し、function callingを使用して情報を返してください。簡潔に応答し、次の質問に自然につなげてください。`
     };
     
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAIClient().chat.completions.create({
       model: 'gpt-4o',
       messages: [systemMessage, ...messages],
       functions,
@@ -161,7 +167,7 @@ export async function POST(request: Request) {
     
     if (isComplete && !updatedData.tags) {
       try {
-        const tagsResponse = await openai.chat.completions.create({
+        const tagsResponse = await getOpenAIClient().chat.completions.create({
           model: 'gpt-4o',
           messages: [
             {
