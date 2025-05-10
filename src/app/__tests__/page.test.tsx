@@ -27,7 +27,7 @@ vi.mock('@/components/SearchBar', () => ({
       React.createElement('input', {
         'data-testid': 'search-input',
         placeholder: placeholder || 'キーワードで検索...',
-        onChange: (e: any) => onSearch(e.target.value)
+        onChange: (e: React.ChangeEvent<HTMLInputElement>) => onSearch(e.target.value)
       }))
 }));
 

@@ -21,7 +21,6 @@ const CASES_PER_PAGE = 12;
 
 export default function Home() {
   const [cases, setCases] = useState<Case[]>([]);
-  const [allCases, setAllCases] = useState<Case[]>([]); // Store all cases for tag extraction
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -41,8 +40,6 @@ export default function Home() {
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      
-      setAllCases(data as Case[]);
       
       const uniqueTags = extractUniqueTags(data as Case[]);
       setAvailableTags(uniqueTags);
