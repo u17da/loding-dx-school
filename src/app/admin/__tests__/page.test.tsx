@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import AdminDashboard from '../page';
+import AdminDashboard from '../../../components/admin/AdminDashboard';
 
 const mockPush = vi.fn();
 const mockRefresh = vi.fn();

@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import EditCasePage from '../page';
+import AdminEdit from '../../../../../components/admin/edit/AdminEdit';
 
 const mockPush = vi.fn();
 const mockRefresh = vi.fn();
@@ -53,7 +53,7 @@ describe('EditCasePage', () => {
   });
 
   it('renders the edit form with case data', async () => {
-    render(<EditCasePage />);
+    render(<AdminEdit caseId="123e4567-e89b-12d3-a456-426614174000" />);
     
     expect(screen.getByText('読み込み中...')).toBeInTheDocument();
     
@@ -67,11 +67,11 @@ describe('EditCasePage', () => {
     expect(screen.getByDisplayValue('https://example.com/image.jpg')).toBeInTheDocument();
     
     expect(screen.getByText('キャンセル')).toBeInTheDocument();
-    expect(screen.getByText('保存')).toBeInTheDocument();
+    expect(screen.getByText('保存する')).toBeInTheDocument();
   });
 
   it('handles form submission correctly', async () => {
-    render(<EditCasePage />);
+    render(<AdminEdit caseId="123e4567-e89b-12d3-a456-426614174000" />);
     
     await waitFor(() => {
       expect(screen.getByDisplayValue('Test Case Title')).toBeInTheDocument();
@@ -86,7 +86,7 @@ describe('EditCasePage', () => {
     const tagsInput = screen.getByDisplayValue('tag1, tag2');
     fireEvent.change(tagsInput, { target: { value: 'tag1, tag2, tag3' } });
     
-    fireEvent.click(screen.getByText('保存'));
+    fireEvent.click(screen.getByText('保存する'));
     
     await waitFor(() => {
       expect(mockFrom).toHaveBeenCalledWith('cases');
@@ -103,7 +103,7 @@ describe('EditCasePage', () => {
   });
 
   it('handles validation errors', async () => {
-    render(<EditCasePage />);
+    render(<AdminEdit caseId="123e4567-e89b-12d3-a456-426614174000" />);
     
     await waitFor(() => {
       expect(screen.getByDisplayValue('Test Case Title')).toBeInTheDocument();
@@ -112,13 +112,13 @@ describe('EditCasePage', () => {
     const titleInput = screen.getByDisplayValue('Test Case Title');
     fireEvent.change(titleInput, { target: { value: '' } });
     
-    fireEvent.click(screen.getByText('保存'));
+    fireEvent.click(screen.getByText('保存する'));
     
     expect(screen.getByText('すべての必須フィールドを入力してください。')).toBeInTheDocument();
   });
 
   it('handles cancel button correctly', async () => {
-    render(<EditCasePage />);
+    render(<AdminEdit caseId="123e4567-e89b-12d3-a456-426614174000" />);
     
     await waitFor(() => {
       expect(screen.getByText('キャンセル')).toBeInTheDocument();
