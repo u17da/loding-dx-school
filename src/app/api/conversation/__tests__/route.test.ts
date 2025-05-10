@@ -3,29 +3,18 @@ import { NextRequest } from 'next/server';
 import { POST } from '../route';
 import OpenAI from 'openai';
 
-vi.mock('openai', () => {
-  const mockOpenAI = vi.fn().mockImplementation(() => ({
-    chat: {
-      completions: {
-        create: vi.fn()
-      }
+const mockCreate = vi.fn();
+const mockOpenAI = {
+  chat: {
+    completions: {
+      create: mockCreate
     }
-  }));
-  
-  (mockOpenAI as any).mock = {
-    results: [{
-      value: {
-        chat: {
-          completions: {
-            create: vi.fn()
-          }
-        }
-      }
-    }]
-  };
-  
+  }
+};
+
+vi.mock('openai', () => {
   return {
-    default: mockOpenAI
+    default: vi.fn(() => mockOpenAI)
   };
 });
 

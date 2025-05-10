@@ -14,11 +14,6 @@ type ConversationData = {
   title?: string;
 };
 
-type Message = {
-  role: 'user' | 'assistant';
-  content: string;
-};
-
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
