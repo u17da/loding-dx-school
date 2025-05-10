@@ -43,7 +43,7 @@ describe('CaseCard Component', () => {
 
     render(React.createElement(CaseCard, longSummaryCase));
     
-    const truncatedText = 'This is a very long summary that should be truncated because it exceeds the 100 character limit that we have...';
+    const truncatedText = 'This is a very long summary that should be truncated because it exceeds the 100 character limit that...';
     expect(screen.getByText(truncatedText)).toBeInTheDocument();
   });
 });
