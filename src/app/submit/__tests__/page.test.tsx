@@ -3,6 +3,39 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import SubmitPage from '../page';
 
+vi.mock('@/components/ConversationUI', () => ({
+  default: vi.fn(({ onComplete }) => {
+    return (
+      <div data-testid="mock-conversation-ui">
+        <button 
+          data-testid="complete-conversation-button"
+          onClick={() => onComplete(
+            {
+              title: 'Test DX Failure',
+              summary: 'This is a test summary',
+              when: '2025年4月',
+              location: '社内開発環境',
+              who: '開発チーム',
+              impact: 'プロジェクトが遅延した',
+              cause: '環境構築の問題',
+              suggestions: '自動化ツールの導入',
+              tags: ['開発環境', 'ツール', 'プロセス']
+            },
+            [
+              { role: 'assistant', content: 'どのような失敗だったのか教えてください。' },
+              { role: 'user', content: 'テスト用の失敗事例です' }
+            ]
+          )}
+        >
+          Complete Conversation
+        </button>
+      </div>
+    );
+  })
+}));
+
+global.fetch = vi.fn();
+
 const createMockResponse = <T extends object>(data: T): Promise<Response> => {
   return Promise.resolve({
     ok: true,
@@ -11,175 +44,179 @@ const createMockResponse = <T extends object>(data: T): Promise<Response> => {
     headers: new Headers(),
     status: 200,
     statusText: 'OK',
-  } as unknown as Response);
+  } as Partial<Response> as Response);
 };
 
-global.fetch = vi.fn();
-
 vi.mock('@/lib/supabase', () => ({
-  getSupabase: vi.fn().mockReturnValue({
-    from: vi.fn().mockReturnThis(),
-    insert: vi.fn().mockReturnThis(),
-    select: vi.fn().mockImplementation(() => {
-      return Promise.resolve({ data: [{ id: '123' }], error: null });
-    })
-  })
+  getSupabase: vi.fn(() => ({
+    from: vi.fn(() => ({
+      insert: vi.fn(() => ({
+        select: vi.fn(() => Promise.resolve({ data: [{ id: '123' }], error: null }))
+      }))
+    }))
+  }))
 }));
 
-describe('SubmitPage with Moderation', () => {
+describe('SubmitPage with Conversational UI', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     
-    vi.mocked(global.fetch).mockReset();
+    (global.fetch as unknown as { mockImplementation: (callback: (url: string) => Promise<Response>) => void }).mockImplementation((url: string) => {
+      if (url === '/api/generate-image-from-summary') {
+        return createMockResponse({ imageUrl: 'https://example.com/image.jpg' });
+      }
+      
+      if (url === '/api/moderate') {
+        return createMockResponse({ flagged: false });
+      }
+      
+      return createMockResponse({});
+    });
   });
-
-  it('displays the submit form initially', () => {
+  
+  it('renders the conversation UI initially', () => {
     render(<SubmitPage />);
     
-    expect(screen.getByText('Submit a DX Failure Scenario')).toBeInTheDocument();
-    expect(screen.getByLabelText('DX Failure Scenario')).toBeInTheDocument();
-    expect(screen.getByText('Generate Case')).toBeInTheDocument();
+    expect(screen.getByText('DX失敗事例の投稿')).toBeInTheDocument();
+    expect(screen.getByText('開発者体験（DX）の失敗事例について、AIアシスタントとの会話形式で情報を入力してください。')).toBeInTheDocument();
+    expect(screen.getByTestId('mock-conversation-ui')).toBeInTheDocument();
   });
-
-  it('shows error when submitting empty input', () => {
+  
+  it('transitions to review step after conversation completion and image generation', async () => {
     render(<SubmitPage />);
     
-    const submitButton = screen.getByText('Generate Case');
-    fireEvent.click(submitButton);
-    
-    expect(screen.getByText('Please enter a description of the DX failure scenario.')).toBeInTheDocument();
-  });
-
-  it('handles successful moderation and submission', async () => {
-    vi.mocked(global.fetch).mockImplementationOnce(() => 
-      createMockResponse({
-        title: 'Test Title',
-        summary: 'Test Summary',
-        tags: ['tag1', 'tag2']
-      })
-    );
-    
-    vi.mocked(global.fetch).mockImplementationOnce(() => 
-      createMockResponse({
-        imageUrl: 'https://example.com/image.jpg'
-      })
-    );
-    
-    vi.mocked(global.fetch).mockImplementationOnce(() => 
-      createMockResponse({
-        flagged: false,
-        categories: {},
-        category_scores: {}
-      })
-    );
-    
-    render(<SubmitPage />);
-    
-    const textarea = screen.getByLabelText('DX Failure Scenario');
-    fireEvent.change(textarea, { target: { value: 'This is a test scenario' } });
-    
-    const submitButton = screen.getByText('Generate Case');
-    fireEvent.click(submitButton);
+    fireEvent.click(screen.getByTestId('complete-conversation-button'));
     
     await waitFor(() => {
-      expect(screen.getByText('Test Title')).toBeInTheDocument();
+      expect(global.fetch).toHaveBeenCalledWith('/api/generate-image-from-summary', expect.any(Object));
     });
-    
-    const confirmButton = screen.getByText('Confirm & Submit');
-    fireEvent.click(confirmButton);
     
     await waitFor(() => {
-      expect(screen.getByText('Submission Successful!')).toBeInTheDocument();
+      expect(screen.getByText('Test DX Failure')).toBeInTheDocument();
     });
     
-    expect(global.fetch).toHaveBeenCalledTimes(3);
-    expect(global.fetch).toHaveBeenNthCalledWith(1, '/api/analyze', expect.any(Object));
-    expect(global.fetch).toHaveBeenNthCalledWith(2, '/api/generate-image', expect.any(Object));
-    expect(global.fetch).toHaveBeenNthCalledWith(3, '/api/moderate', expect.any(Object));
+    expect(screen.getByText('いつ')).toBeInTheDocument();
+    expect(screen.getByText('2025年4月')).toBeInTheDocument();
+    expect(screen.getByText('どこで')).toBeInTheDocument();
+    expect(screen.getByText('社内開発環境')).toBeInTheDocument();
+    expect(screen.getByText('誰が')).toBeInTheDocument();
+    expect(screen.getByText('開発チーム')).toBeInTheDocument();
+    expect(screen.getByText('何が起きたか')).toBeInTheDocument();
+    expect(screen.getByText('This is a test summary')).toBeInTheDocument();
+    expect(screen.getByText('どうなったか')).toBeInTheDocument();
+    expect(screen.getByText('プロジェクトが遅延した')).toBeInTheDocument();
+    expect(screen.getByText('原因')).toBeInTheDocument();
+    expect(screen.getByText('環境構築の問題')).toBeInTheDocument();
+    expect(screen.getByText('改善方法・アドバイス')).toBeInTheDocument();
+    expect(screen.getByText('自動化ツールの導入')).toBeInTheDocument();
+    
+    expect(screen.getByText('開発環境')).toBeInTheDocument();
+    expect(screen.getByText('ツール')).toBeInTheDocument();
+    expect(screen.getByText('プロセス')).toBeInTheDocument();
   });
-
-  it('handles failed moderation and shows message', async () => {
-    vi.mocked(global.fetch).mockImplementationOnce(() => 
-      createMockResponse({
-        title: 'Test Title',
-        summary: 'Test Summary with inappropriate content',
-        tags: ['tag1', 'tag2']
-      })
-    );
+  
+  it('submits the case to Supabase after confirmation', async () => {
+    render(<SubmitPage />);
     
-    vi.mocked(global.fetch).mockImplementationOnce(() => 
-      createMockResponse({
-        imageUrl: 'https://example.com/image.jpg'
-      })
-    );
+    fireEvent.click(screen.getByTestId('complete-conversation-button'));
     
-    vi.mocked(global.fetch).mockImplementationOnce(() => 
-      createMockResponse({
-        flagged: true,
-        categories: { violence: true },
-        category_scores: { violence: 0.9 }
-      })
-    );
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('/api/generate-image-from-summary', expect.any(Object));
+    });
+    
+    await waitFor(() => {
+      expect(screen.getByText('確認して送信')).toBeInTheDocument();
+    });
+    
+    fireEvent.click(screen.getByText('確認して送信'));
+    
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('/api/moderate', expect.any(Object));
+    });
+    
+    await waitFor(() => {
+      expect(screen.getByText('送信完了！')).toBeInTheDocument();
+    });
+    
+    expect(screen.getByText('別の事例を投稿する')).toBeInTheDocument();
+  });
+  
+  it('handles moderation failure correctly', async () => {
+    (global.fetch as unknown as { mockImplementation: (callback: (url: string) => Promise<Response>) => void }).mockImplementation((url: string) => {
+      if (url === '/api/generate-image-from-summary') {
+        return createMockResponse({ imageUrl: 'https://example.com/image.jpg' });
+      }
+      
+      if (url === '/api/moderate') {
+        return createMockResponse({ flagged: true });
+      }
+      
+      return createMockResponse({});
+    });
     
     render(<SubmitPage />);
     
-    const textarea = screen.getByLabelText('DX Failure Scenario');
-    fireEvent.change(textarea, { target: { value: 'This is a test scenario with inappropriate content' } });
-    
-    const submitButton = screen.getByText('Generate Case');
-    fireEvent.click(submitButton);
+    fireEvent.click(screen.getByTestId('complete-conversation-button'));
     
     await waitFor(() => {
-      expect(screen.getByText('Test Title')).toBeInTheDocument();
+      expect(global.fetch).toHaveBeenCalledWith('/api/generate-image-from-summary', expect.any(Object));
     });
     
-    const confirmButton = screen.getByText('Confirm & Submit');
-    fireEvent.click(confirmButton);
+    await waitFor(() => {
+      expect(screen.getByText('確認して送信')).toBeInTheDocument();
+    });
+    
+    fireEvent.click(screen.getByText('確認して送信'));
+    
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('/api/moderate', expect.any(Object));
+    });
     
     await waitFor(() => {
       expect(screen.getByText('コンテンツモデレーションに失敗しました')).toBeInTheDocument();
     });
-    
-    expect(global.fetch).toHaveBeenCalledTimes(3);
-    expect(global.fetch).toHaveBeenNthCalledWith(3, '/api/moderate', expect.any(Object));
   });
-
-  it('handles moderation API errors gracefully', async () => {
-    vi.mocked(global.fetch).mockImplementationOnce(() => 
-      createMockResponse({
-        title: 'Test Title',
-        summary: 'Test Summary',
-        tags: ['tag1', 'tag2']
-      })
-    );
-    
-    vi.mocked(global.fetch).mockImplementationOnce(() => 
-      createMockResponse({
-        imageUrl: 'https://example.com/image.jpg'
-      })
-    );
-    
-    vi.mocked(global.fetch).mockImplementationOnce(() => 
-      Promise.reject(new Error('API Error'))
-    );
+  
+  it('handles image generation failure correctly', async () => {
+    (global.fetch as unknown as { mockImplementation: (callback: (url: string) => Promise<Response>) => void }).mockImplementation((url: string) => {
+      if (url === '/api/generate-image-from-summary') {
+        return Promise.resolve({
+          ok: false,
+          json: () => Promise.resolve({ error: 'Failed to generate image' })
+        });
+      }
+      
+      return createMockResponse({});
+    });
     
     render(<SubmitPage />);
     
-    const textarea = screen.getByLabelText('DX Failure Scenario');
-    fireEvent.change(textarea, { target: { value: 'This is a test scenario' } });
-    
-    const submitButton = screen.getByText('Generate Case');
-    fireEvent.click(submitButton);
+    fireEvent.click(screen.getByTestId('complete-conversation-button'));
     
     await waitFor(() => {
-      expect(screen.getByText('Test Title')).toBeInTheDocument();
+      expect(global.fetch).toHaveBeenCalledWith('/api/generate-image-from-summary', expect.any(Object));
     });
-    
-    const confirmButton = screen.getByText('Confirm & Submit');
-    fireEvent.click(confirmButton);
     
     await waitFor(() => {
-      expect(screen.getByText(/Failed to save your submission/)).toBeInTheDocument();
+      expect(screen.getByText('画像の生成中にエラーが発生しました。もう一度お試しください。')).toBeInTheDocument();
     });
+  });
+  
+  it('allows resetting the form after review', async () => {
+    render(<SubmitPage />);
+    
+    fireEvent.click(screen.getByTestId('complete-conversation-button'));
+    
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('/api/generate-image-from-summary', expect.any(Object));
+    });
+    
+    await waitFor(() => {
+      expect(screen.getByText('最初からやり直す')).toBeInTheDocument();
+    });
+    
+    fireEvent.click(screen.getByText('最初からやり直す'));
+    
+    expect(screen.getByTestId('mock-conversation-ui')).toBeInTheDocument();
   });
 });

@@ -3,55 +3,51 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import { getSupabase } from '@/lib/supabase';
+import ConversationUI from '@/components/ConversationUI';
 
-interface Case {
-  title: string;
-  summary: string;
-  tags: string[];
-  image_url: string;
+interface ConversationData {
+  when?: string;
+  location?: string;
+  who?: string;
+  summary?: string;
+  impact?: string;
+  cause?: string;
+  suggestions?: string;
+  tags?: string[];
+  image_url?: string;
+  title?: string;
 }
 
+type Message = {
+  role: 'user' | 'assistant';
+  content: string;
+};
+
 export default function SubmitPage() {
-  const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [generatedCase, setGeneratedCase] = useState<Case | null>(null);
-  const [step, setStep] = useState<'input' | 'review' | 'success'>('input');
+  const [conversationData, setConversationData] = useState<ConversationData | null>(null);
+  const [step, setStep] = useState<'conversation' | 'review' | 'success'>('conversation');
+  const [conversation, setConversation] = useState<Message[]>([]);
+  const [moderationFailed, setModerationFailed] = useState(false);
+  const [moderationMessage, setModerationMessage] = useState('');
+  const [imageGenerating, setImageGenerating] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleConversationComplete = async (data: ConversationData, messages: Message[]) => {
+    setConversationData(data);
+    setConversation(messages);
+    setImageGenerating(true);
     
-    if (!input.trim()) {
-      setError('Please enter a description of the DX failure scenario.');
-      return;
-    }
-
-    setIsLoading(true);
-    setError('');
-
     try {
-      const analyzeResponse = await fetch('/api/analyze', {
+      const imageResponse = await fetch('/api/generate-image-from-summary', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ input }),
-      });
-      
-      if (!analyzeResponse.ok) {
-        throw new Error('Failed to analyze the scenario');
-      }
-      
-      const parsedResponse = await analyzeResponse.json();
-      
-      const imagePrompt = `Create an illustration representing this developer experience failure scenario: ${parsedResponse.title}. The image should be professional and suitable for a technical audience.`;
-      
-      const imageResponse = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ prompt: imagePrompt }),
+        body: JSON.stringify({ 
+          summary: data.summary,
+          title: data.title
+        }),
       });
       
       if (!imageResponse.ok) {
@@ -61,28 +57,22 @@ export default function SubmitPage() {
       const { imageUrl } = await imageResponse.json();
       if (!imageUrl) throw new Error('Failed to generate image');
 
-      const newCase: Case = {
-        title: parsedResponse.title,
-        summary: parsedResponse.summary,
-        tags: parsedResponse.tags,
-        image_url: imageUrl,
-      };
-
-      setGeneratedCase(newCase);
+      setConversationData(prev => ({
+        ...prev,
+        image_url: imageUrl
+      }));
+      
       setStep('review');
     } catch (err) {
-      console.error('Error:', err);
-      setError('An error occurred while processing your request. Please try again.');
+      console.error('Error generating image:', err);
+      setError('画像の生成中にエラーが発生しました。もう一度お試しください。');
     } finally {
-      setIsLoading(false);
+      setImageGenerating(false);
     }
   };
 
-  const [moderationFailed, setModerationFailed] = useState(false);
-  const [moderationMessage, setModerationMessage] = useState('');
-
   const handleConfirm = async () => {
-    if (!generatedCase) return;
+    if (!conversationData) return;
     
     setIsLoading(true);
     setModerationFailed(false);
@@ -94,7 +84,7 @@ export default function SubmitPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ content: generatedCase.summary }),
+        body: JSON.stringify({ content: conversationData.summary }),
       });
       
       if (!moderationResponse.ok) {
@@ -110,7 +100,7 @@ export default function SubmitPage() {
         await supabase
           .from('moderation_logs')
           .insert([{
-            content: generatedCase.summary,
+            content: conversationData.summary,
             moderation_result: moderationResult
           }]);
         
@@ -120,8 +110,17 @@ export default function SubmitPage() {
       }
       
       const supabaseCase = {
-        ...generatedCase,
-        tags: JSON.stringify(generatedCase.tags)
+        title: conversationData.title,
+        summary: conversationData.summary,
+        tags: JSON.stringify(conversationData.tags || []),
+        image_url: conversationData.image_url,
+        when: conversationData.when,
+        location: conversationData.location,
+        who: conversationData.who,
+        impact: conversationData.impact,
+        cause: conversationData.cause,
+        suggestions: conversationData.suggestions,
+        conversation: JSON.stringify(conversation)
       };
       
       console.log('Submitting to Supabase:', supabaseCase);
@@ -146,84 +145,102 @@ export default function SubmitPage() {
       setStep('success');
     } catch (err) {
       console.error('Error saving to Supabase:', err);
-      setError(`Failed to save your submission: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setError(`送信に失敗しました: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleReset = () => {
-    setInput('');
-    setGeneratedCase(null);
-    setStep('input');
+    setConversationData(null);
+    setConversation([]);
+    setStep('conversation');
     setError('');
+    setModerationFailed(false);
+    setModerationMessage('');
   };
 
   return (
     <div className="container mx-auto px-4 py-12">
-      <h1 className="text-4xl font-bold mb-8 text-center text-primary">Submit a DX Failure Scenario</h1>
+      <h1 className="text-4xl font-bold mb-8 text-center text-primary">DX失敗事例の投稿</h1>
       
-      {step === 'input' && (
+      {step === 'conversation' && (
         <div className="max-w-2xl mx-auto">
           <p className="mb-6 text-text">
-            Describe a developer experience (DX) failure scenario you&apos;ve encountered. Our AI will analyze it and generate a structured case.
+            開発者体験（DX）の失敗事例について、AIアシスタントとの会話形式で情報を入力してください。
           </p>
           
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="scenario" className="block text-sm font-medium text-text mb-1">
-                DX Failure Scenario
-              </label>
-              <textarea
-                id="scenario"
-                rows={6}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                placeholder="Describe the DX failure scenario in detail..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-            
-            {error && (
-              <div className="text-red-500 text-sm">{error}</div>
-            )}
-            
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="btn w-full disabled:opacity-50"
-            >
-              {isLoading ? 'Processing...' : 'Generate Case'}
-            </button>
-          </form>
+          <div className="bg-white rounded-lg shadow-lg p-4 h-[500px] flex flex-col">
+            <ConversationUI 
+              onComplete={handleConversationComplete} 
+              isLoading={imageGenerating}
+            />
+          </div>
+          
+          {error && (
+            <div className="text-red-500 text-sm mt-4">{error}</div>
+          )}
         </div>
       )}
       
-      {step === 'review' && generatedCase && (
+      {step === 'review' && conversationData && (
         <div className="max-w-2xl mx-auto">
           <div className="card mb-6">
-            <h2 className="text-2xl font-bold mb-4 text-primary">{generatedCase.title}</h2>
+            <h2 className="text-2xl font-bold mb-4 text-primary">{conversationData.title}</h2>
             
-            <div className="mb-6 relative h-64 w-full">
-              <Image 
-                src={generatedCase.image_url} 
-                alt={generatedCase.title}
-                fill
-                sizes="(max-width: 768px) 100vw, 768px"
-                className="object-cover rounded-lg"
-              />
-            </div>
+            {conversationData.image_url && (
+              <div className="mb-6 relative h-64 w-full">
+                <Image 
+                  src={conversationData.image_url} 
+                  alt={conversationData.title || ''}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 768px"
+                  className="object-cover rounded-lg"
+                />
+              </div>
+            )}
             
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold mb-2 text-primary">Summary</h3>
-              <p className="text-text">{generatedCase.summary}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div>
+                <h3 className="text-lg font-semibold mb-2 text-primary">いつ</h3>
+                <p className="text-text">{conversationData.when}</p>
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-semibold mb-2 text-primary">どこで</h3>
+                <p className="text-text">{conversationData.location}</p>
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-semibold mb-2 text-primary">誰が</h3>
+                <p className="text-text">{conversationData.who}</p>
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-semibold mb-2 text-primary">何が起きたか</h3>
+                <p className="text-text">{conversationData.summary}</p>
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-semibold mb-2 text-primary">どうなったか</h3>
+                <p className="text-text">{conversationData.impact}</p>
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-semibold mb-2 text-primary">原因</h3>
+                <p className="text-text">{conversationData.cause}</p>
+              </div>
+              
+              <div className="md:col-span-2">
+                <h3 className="text-lg font-semibold mb-2 text-primary">改善方法・アドバイス</h3>
+                <p className="text-text">{conversationData.suggestions}</p>
+              </div>
             </div>
             
             <div>
-              <h3 className="text-lg font-semibold mb-2 text-primary">Tags</h3>
+              <h3 className="text-lg font-semibold mb-2 text-primary">タグ</h3>
               <div className="flex flex-wrap gap-2">
-                {generatedCase.tags.map((tag, index) => (
+                {conversationData.tags && conversationData.tags.map((tag, index) => (
                   <span 
                     key={index}
                     className="tag"
@@ -252,14 +269,14 @@ export default function SubmitPage() {
               disabled={isLoading}
               className="flex-1 bg-gray-200 text-text py-2 px-4 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50"
             >
-              Start Over
+              最初からやり直す
             </button>
             <button
               onClick={handleConfirm}
               disabled={isLoading}
               className="flex-1 btn disabled:opacity-50"
             >
-              {isLoading ? 'Saving...' : 'Confirm & Submit'}
+              {isLoading ? '保存中...' : '確認して送信'}
             </button>
           </div>
         </div>
@@ -268,15 +285,15 @@ export default function SubmitPage() {
       {step === 'success' && (
         <div className="max-w-2xl mx-auto text-center">
           <div className="bg-accent bg-opacity-20 text-primary p-6 rounded-lg mb-6">
-            <h2 className="text-2xl font-bold mb-2">Submission Successful!</h2>
-            <p>Your DX failure scenario has been submitted successfully.</p>
+            <h2 className="text-2xl font-bold mb-2">送信完了！</h2>
+            <p>DX失敗事例が正常に送信されました。</p>
           </div>
           
           <button
             onClick={handleReset}
             className="btn"
           >
-            Submit Another Case
+            別の事例を投稿する
           </button>
         </div>
       )}
