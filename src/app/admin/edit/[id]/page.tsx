@@ -9,11 +9,10 @@ const AdminEditContent = dynamic(
   { ssr: false }
 );
 
-type Props = {
+export default function AdminEditPage({
+  params,
+}: {
   params: { id: string };
-  searchParams: { [key: string]: string | string[] | undefined };
-};
-
-export default function AdminEditPage({ params }: Props) {
+}) {
   return <AdminEditContent caseId={params.id} />;
 }
