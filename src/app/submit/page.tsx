@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
-import OpenAI from 'openai';
 
 interface Case {
   title: string;
@@ -18,11 +18,6 @@ export default function SubmitPage() {
   const [generatedCase, setGeneratedCase] = useState<Case | null>(null);
   const [step, setStep] = useState<'input' | 'review' | 'success'>('input');
 
-  const openai = new OpenAI({
-    apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
-    dangerouslyAllowBrowser: true, // Note: In production, you should use server-side API calls
-  });
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -35,36 +30,35 @@ export default function SubmitPage() {
     setError('');
 
     try {
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a helpful assistant that analyzes DX (Developer Experience) failure scenarios and generates structured information about them.'
-          },
-          {
-            role: 'user',
-            content: `Analyze this DX failure scenario and generate a JSON response with a title, summary, and relevant tags: ${input}`
-          }
-        ],
-        response_format: { type: 'json_object' }
+      const analyzeResponse = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ input }),
       });
-
-      const responseContent = completion.choices[0]?.message?.content;
-      if (!responseContent) throw new Error('Failed to generate response from OpenAI');
       
-      const parsedResponse = JSON.parse(responseContent);
+      if (!analyzeResponse.ok) {
+        throw new Error('Failed to analyze the scenario');
+      }
+      
+      const parsedResponse = await analyzeResponse.json();
       
       const imagePrompt = `Create an illustration representing this developer experience failure scenario: ${parsedResponse.title}. The image should be professional and suitable for a technical audience.`;
       
-      const imageResponse = await openai.images.generate({
-        model: 'dall-e-3',
-        prompt: imagePrompt,
-        n: 1,
-        size: '1024x1024',
+      const imageResponse = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt: imagePrompt }),
       });
-
-      const imageUrl = imageResponse.data?.[0]?.url;
+      
+      if (!imageResponse.ok) {
+        throw new Error('Failed to generate image');
+      }
+      
+      const { imageUrl } = await imageResponse.json();
       if (!imageUrl) throw new Error('Failed to generate image');
 
       const newCase: Case = {
@@ -119,7 +113,7 @@ export default function SubmitPage() {
       {step === 'input' && (
         <div className="max-w-2xl mx-auto">
           <p className="mb-6 text-gray-600">
-            Describe a developer experience (DX) failure scenario you've encountered. Our AI will analyze it and generate a structured case.
+            Describe a developer experience (DX) failure scenario you&apos;ve encountered. Our AI will analyze it and generate a structured case.
           </p>
           
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -158,11 +152,13 @@ export default function SubmitPage() {
           <div className="bg-white p-6 rounded-lg shadow-md mb-6">
             <h2 className="text-2xl font-bold mb-4">{generatedCase.title}</h2>
             
-            <div className="mb-6">
-              <img 
+            <div className="mb-6 relative h-64 w-full">
+              <Image 
                 src={generatedCase.image_url} 
                 alt={generatedCase.title}
-                className="w-full h-64 object-cover rounded-md mb-4"
+                fill
+                sizes="(max-width: 768px) 100vw, 768px"
+                className="object-cover rounded-md"
               />
             </div>
             
