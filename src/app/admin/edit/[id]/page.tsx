@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import Link from 'next/link';
+import Image from 'next/image';
+import { PostgrestError } from '@supabase/supabase-js';
 
 type Case = {
   id: string;
@@ -28,13 +30,7 @@ export default function EditCasePage() {
   const id = params?.id as string;
   const supabase = createClientComponentClient();
 
-  useEffect(() => {
-    if (id) {
-      fetchCase(id);
-    }
-  }, [id]);
-
-  const fetchCase = async (caseId: string) => {
+  const fetchCase = useCallback(async (caseId: string) => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -63,12 +59,19 @@ export default function EditCasePage() {
         
         setImageUrl(data.image_url);
       }
-    } catch (err: any) {
-      setError(err.message || 'ケースの取得に失敗しました。');
+    } catch (err: unknown) {
+      const pgError = err as PostgrestError;
+      setError(pgError.message || 'ケースの取得に失敗しました。');
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase]);
+
+  useEffect(() => {
+    if (id) {
+      fetchCase(id);
+    }
+  }, [id, fetchCase]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,8 +107,9 @@ export default function EditCasePage() {
       setTimeout(() => {
         setSuccess(null);
       }, 3000);
-    } catch (err: any) {
-      setError(err.message || '更新に失敗しました。');
+    } catch (err: unknown) {
+      const pgError = err as PostgrestError;
+      setError(pgError.message || '更新に失敗しました。');
     } finally {
       setSaving(false);
     }
@@ -221,11 +225,15 @@ export default function EditCasePage() {
           {imageUrl && (
             <div className="mt-2">
               <p className="text-sm text-gray-600 mb-2">プレビュー:</p>
-              <img
-                src={imageUrl}
-                alt="プレビュー"
-                className="max-w-full h-auto max-h-48 rounded-lg"
-              />
+              <div className="relative w-full max-w-full h-48">
+                <Image
+                  src={imageUrl}
+                  alt="プレビュー"
+                  fill
+                  style={{ objectFit: 'contain' }}
+                  className="rounded-lg"
+                />
+              </div>
             </div>
           )}
         </div>

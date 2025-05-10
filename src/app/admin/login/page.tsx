@@ -30,8 +30,9 @@ export default function AdminLoginPage() {
 
       router.push('/admin');
       router.refresh();
-    } catch (err: any) {
-      setError(err.message || 'ログインに失敗しました。');
+    } catch (err: unknown) {
+      const authError = err as { message?: string };
+      setError(authError.message || 'ログインに失敗しました。');
     } finally {
       setLoading(false);
     }

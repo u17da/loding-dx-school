@@ -3,10 +3,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import AdminDashboard from '../page';
 
+const mockPush = vi.fn();
+const mockRefresh = vi.fn();
+
+const mockSignOut = vi.fn().mockResolvedValue({ error: null });
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
-    push: vi.fn(),
-    refresh: vi.fn(),
+    push: mockPush,
+    refresh: mockRefresh,
   }),
 }));
 
@@ -40,7 +45,7 @@ vi.mock('@supabase/auth-helpers-nextjs', () => ({
       });
     }),
     auth: {
-      signOut: vi.fn().mockResolvedValue({ error: null }),
+      signOut: mockSignOut,
     },
   }),
 }));
@@ -72,9 +77,6 @@ describe('AdminDashboard', () => {
   });
 
   it('handles logout correctly', async () => {
-    const { auth } = createClientComponentClient();
-    const { push } = useRouter();
-    
     render(<AdminDashboard />);
     
     await waitFor(() => {
@@ -83,9 +85,9 @@ describe('AdminDashboard', () => {
     
     fireEvent.click(screen.getByText('ログアウト'));
     
-    expect(auth.signOut).toHaveBeenCalled();
+    expect(mockSignOut).toHaveBeenCalled();
     await waitFor(() => {
-      expect(push).toHaveBeenCalledWith('/admin/login');
+      expect(mockPush).toHaveBeenCalledWith('/admin/login');
     });
   });
 
@@ -126,11 +128,3 @@ describe('AdminDashboard', () => {
     });
   });
 });
-
-function createClientComponentClient() {
-  return require('@supabase/auth-helpers-nextjs').createClientComponentClient();
-}
-
-function useRouter() {
-  return require('next/navigation').useRouter();
-}

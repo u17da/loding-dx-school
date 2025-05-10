@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { PostgrestError } from '@supabase/supabase-js';
 import Link from 'next/link';
 
 type Case = {
@@ -22,11 +23,7 @@ export default function AdminDashboard() {
   const router = useRouter();
   const supabase = createClientComponentClient();
 
-  useEffect(() => {
-    fetchCases();
-  }, []);
-
-  const fetchCases = async () => {
+  const fetchCases = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -36,12 +33,17 @@ export default function AdminDashboard() {
 
       if (error) throw error;
       setCases(data || []);
-    } catch (err: any) {
-      setError(err.message || 'ケースの取得に失敗しました。');
+    } catch (err: unknown) {
+      const pgError = err as PostgrestError;
+      setError(pgError.message || 'ケースの取得に失敗しました。');
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchCases();
+  }, [fetchCases]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -71,8 +73,9 @@ export default function AdminDashboard() {
       setTimeout(() => {
         setDeleteSuccess(null);
       }, 3000);
-    } catch (err: any) {
-      setError(err.message || '削除に失敗しました。');
+    } catch (err: unknown) {
+      const pgError = err as PostgrestError;
+      setError(pgError.message || '削除に失敗しました。');
     } finally {
       setShowConfirmation(false);
       setDeleteId(null);

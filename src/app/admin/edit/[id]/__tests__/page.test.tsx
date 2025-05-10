@@ -3,10 +3,34 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import EditCasePage from '../page';
 
+const mockPush = vi.fn();
+const mockRefresh = vi.fn();
+
+const mockFrom = vi.fn().mockReturnThis();
+const mockSelect = vi.fn().mockReturnThis();
+const mockSingle = vi.fn().mockImplementation(() => {
+  return Promise.resolve({
+    data: {
+      id: '123e4567-e89b-12d3-a456-426614174000',
+      title: 'Test Case Title',
+      summary: 'Test Case Summary',
+      tags: JSON.stringify(['tag1', 'tag2']),
+      image_url: 'https://example.com/image.jpg',
+    },
+    error: null,
+  });
+});
+const mockUpdate = vi.fn().mockReturnThis();
+const mockEq = vi.fn().mockImplementation(() => {
+  return Promise.resolve({
+    error: null,
+  });
+});
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
-    push: vi.fn(),
-    refresh: vi.fn(),
+    push: mockPush,
+    refresh: mockRefresh,
   }),
   useParams: () => ({
     id: '123e4567-e89b-12d3-a456-426614174000',
@@ -15,26 +39,11 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@supabase/auth-helpers-nextjs', () => ({
   createClientComponentClient: () => ({
-    from: vi.fn().mockReturnThis(),
-    select: vi.fn().mockReturnThis(),
-    single: vi.fn().mockImplementation(() => {
-      return Promise.resolve({
-        data: {
-          id: '123e4567-e89b-12d3-a456-426614174000',
-          title: 'Test Case Title',
-          summary: 'Test Case Summary',
-          tags: JSON.stringify(['tag1', 'tag2']),
-          image_url: 'https://example.com/image.jpg',
-        },
-        error: null,
-      });
-    }),
-    update: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockImplementation(() => {
-      return Promise.resolve({
-        error: null,
-      });
-    }),
+    from: mockFrom,
+    select: mockSelect,
+    single: mockSingle,
+    update: mockUpdate,
+    eq: mockEq,
   }),
 }));
 
@@ -62,8 +71,6 @@ describe('EditCasePage', () => {
   });
 
   it('handles form submission correctly', async () => {
-    const { from, update, eq } = createClientComponentClient();
-    
     render(<EditCasePage />);
     
     await waitFor(() => {
@@ -82,14 +89,14 @@ describe('EditCasePage', () => {
     fireEvent.click(screen.getByText('保存'));
     
     await waitFor(() => {
-      expect(from).toHaveBeenCalledWith('cases');
-      expect(update).toHaveBeenCalledWith({
+      expect(mockFrom).toHaveBeenCalledWith('cases');
+      expect(mockUpdate).toHaveBeenCalledWith({
         title: 'Updated Title',
         summary: 'Updated Summary',
         tags: JSON.stringify(['tag1', 'tag2', 'tag3']),
         image_url: 'https://example.com/image.jpg',
       });
-      expect(eq).toHaveBeenCalledWith('id', '123e4567-e89b-12d3-a456-426614174000');
+      expect(mockEq).toHaveBeenCalledWith('id', '123e4567-e89b-12d3-a456-426614174000');
     });
     
     expect(screen.getByText('ケースが正常に更新されました。')).toBeInTheDocument();
@@ -111,8 +118,6 @@ describe('EditCasePage', () => {
   });
 
   it('handles cancel button correctly', async () => {
-    const { push } = useRouter();
-    
     render(<EditCasePage />);
     
     await waitFor(() => {
@@ -121,14 +126,6 @@ describe('EditCasePage', () => {
     
     fireEvent.click(screen.getByText('キャンセル'));
     
-    expect(push).toHaveBeenCalledWith('/admin');
+    expect(mockPush).toHaveBeenCalledWith('/admin');
   });
 });
-
-function createClientComponentClient() {
-  return require('@supabase/auth-helpers-nextjs').createClientComponentClient();
-}
-
-function useRouter() {
-  return require('next/navigation').useRouter();
-}
