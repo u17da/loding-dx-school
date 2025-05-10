@@ -18,6 +18,7 @@ type ConversationData = {
   tags?: string[];
   image_url?: string;
   title?: string;
+  paragraph_summary?: string;
 };
 
 interface ConversationUIProps {

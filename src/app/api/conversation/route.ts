@@ -12,6 +12,7 @@ type ConversationData = {
   tags?: string[];
   image_url?: string;
   title?: string;
+  paragraph_summary?: string;
 };
 
 const getOpenAIClient = () => {
@@ -24,43 +25,61 @@ const getOpenAIClient = () => {
   });
 };
 
-const determineNextQuestion = (conversationData: ConversationData): string => {
-  if (!conversationData.summary) {
-    return 'どのような失敗だったのか教えてください。';
-  } else if (!conversationData.when) {
-    return 'その失敗はいつ頃起きましたか？';
-  } else if (!conversationData.location) {
-    return 'どこでその失敗が発生しましたか？';
-  } else if (!conversationData.who) {
-    return '具体的にどなたが関係していましたか？';
-  } else if (!conversationData.impact) {
-    return '結果的にどうなりましたか？授業や活動にどんな影響がありましたか？';
-  } else if (!conversationData.cause) {
-    return 'その原因や、問題が起きた理由は何だったと思いますか？';
-  } else if (!conversationData.suggestions) {
-    return 'あなたの考える改善方法や、「こうすればよかった」というアドバイスを教えてください。';
-  } else {
-    return '情報が揃いました。以下の内容で送信してよろしいですか？\n\n' +
-      `いつ: ${conversationData.when}\n` +
-      `どこで: ${conversationData.location}\n` +
-      `誰が: ${conversationData.who}\n` +
-      `何が起きたか: ${conversationData.summary}\n` +
-      `どうなったか: ${conversationData.impact}\n` +
-      `原因: ${conversationData.cause}\n` +
-      `改善方法・アドバイス: ${conversationData.suggestions}`;
-  }
+type ConversationStage = 
+  | 'initial' 
+  | 'gathering_details' 
+  | 'exploring_impact' 
+  | 'understanding_cause' 
+  | 'seeking_suggestions' 
+  | 'summarizing';
+
+const getConversationStage = (messages: Array<{role: string, content: string}>): ConversationStage => {
+  const messageCount = messages.filter(m => m.role === 'user').length;
+  
+  if (messageCount <= 1) return 'initial';
+  if (messageCount <= 3) return 'gathering_details';
+  if (messageCount <= 5) return 'exploring_impact';
+  if (messageCount <= 7) return 'understanding_cause';
+  if (messageCount <= 9) return 'seeking_suggestions';
+  return 'summarizing';
 };
 
-const isConversationComplete = (conversationData: ConversationData): boolean => {
-  return !!(
-    conversationData.summary &&
-    conversationData.when &&
-    conversationData.location &&
-    conversationData.who &&
-    conversationData.impact &&
-    conversationData.cause &&
-    conversationData.suggestions
-  );
+const isConversationComplete = (messages: Array<{role: string, content: string}>, conversationData: ConversationData): boolean => {
+  const userMessageCount = messages.filter(m => m.role === 'user').length;
+  const hasKeyInfo = !!(conversationData.summary && conversationData.impact && conversationData.suggestions);
+  
+  return userMessageCount >= 6 && hasKeyInfo;
+};
+
+const generateParagraphSummary = async (messages: Array<{role: 'user' | 'assistant', content: string}>): Promise<string> => {
+  try {
+    const apiMessages = [
+      {
+        role: 'system' as const,
+        content: `あなたはDX（開発者体験）の失敗事例を自然な文章にまとめるアシスタントです。
+        会話の内容から、以下の情報を含む自然な段落を作成してください：
+        - 失敗の概要
+        - いつ、どこで、誰が関わったか（もし言及されていれば）
+        - どのような影響があったか
+        - 原因や理由
+        - 改善方法や提案
+        
+        自然で読みやすい日本語の段落として、これらの情報を有機的につなげてください。
+        箇条書きではなく、流れるような文章にしてください。`
+      },
+      ...messages
+    ];
+    
+    const response = await getOpenAIClient().chat.completions.create({
+      model: 'gpt-4o',
+      messages: apiMessages
+    });
+    
+    return response.choices[0].message.content || '要約を生成できませんでした。';
+  } catch (error) {
+    console.error('Error generating paragraph summary:', error);
+    return '要約の生成中にエラーが発生しました。';
+  }
 };
 
 export async function POST(request: Request) {
@@ -84,6 +103,8 @@ export async function POST(request: Request) {
       );
     }
     
+    const stage = getConversationStage(messages);
+    
     const functions = [
       {
         name: 'extract_conversation_data',
@@ -97,15 +118,15 @@ export async function POST(request: Request) {
             },
             when: {
               type: 'string',
-              description: 'When the failure occurred',
+              description: 'When the failure occurred (if mentioned)',
             },
             location: {
               type: 'string',
-              description: 'Where the failure occurred',
+              description: 'Where the failure occurred (if mentioned)',
             },
             who: {
               type: 'string',
-              description: 'Who was involved in the failure',
+              description: 'Who was involved in the failure (if mentioned)',
             },
             impact: {
               type: 'string',
@@ -125,23 +146,30 @@ export async function POST(request: Request) {
       },
     ];
     
-    let currentField = '';
-    if (!currentData.summary) currentField = 'summary';
-    else if (!currentData.when) currentField = 'when';
-    else if (!currentData.location) currentField = 'location';
-    else if (!currentData.who) currentField = 'who';
-    else if (!currentData.impact) currentField = 'impact';
-    else if (!currentData.cause) currentField = 'cause';
-    else if (!currentData.suggestions) currentField = 'suggestions';
-    
     const systemMessage = {
       role: 'system',
-      content: `あなたはDX（開発者体験）の失敗事例を収集するアシスタントです。ユーザーとの会話から情報を抽出し、構造化されたデータを作成してください。現在は「${currentField}」の情報を収集しています。ユーザーの回答から適切な情報を抽出し、function callingを使用して情報を返してください。簡潔に応答し、次の質問に自然につなげてください。`
+      content: `あなたはDX（開発者体験）の失敗事例を収集する共感的なアシスタントです。
+      
+      現在の会話ステージ: ${stage}
+      
+      以下のガイドラインに従って会話を進めてください：
+      
+      - 自然で共感的な会話を心がけ、質問攻めにならないようにしてください
+      - ユーザーの感情に寄り添い、「それは大変でしたね」「なるほど」などの共感的な言葉を使ってください
+      - 会話の流れに合わせて、自然に情報を引き出してください
+      - 「いつ」「どこで」「誰が」などの情報は、会話の中で自然に出てきた場合のみ抽出してください
+      - 最終的には改善方法や「こうすればよかった」というアドバイスを聞くようにしてください
+      
+      ユーザーの回答から適切な情報を抽出し、function callingを使用して情報を返してください。
+      次の質問は自然な流れで、前の回答に関連させて行ってください。`
     };
     
     const response = await getOpenAIClient().chat.completions.create({
       model: 'gpt-4o',
-      messages: [systemMessage, ...messages],
+      messages: [
+        systemMessage,
+        ...messages.map(m => ({ role: m.role, content: m.content }))
+      ],
       functions,
       function_call: { name: 'extract_conversation_data' },
     });
@@ -162,77 +190,81 @@ export async function POST(request: Request) {
     
     const updatedData = { ...currentData, ...extractedData };
     
-    const nextQuestion = determineNextQuestion(updatedData);
-    const isComplete = isConversationComplete(updatedData);
+    const isComplete = isConversationComplete(messages, updatedData);
     
-    if (isComplete && !updatedData.tags) {
-      try {
-        const tagsResponse = await getOpenAIClient().chat.completions.create({
-          model: 'gpt-4o',
-          messages: [
-            {
-              role: 'system',
-              content: 'あなたはDX（開発者体験）の失敗事例からタグと簡潔なタイトルを生成するアシスタントです。以下の情報から、関連するタグ（5つまで）と簡潔なタイトルを生成してください。タグは「ネットワーク」「端末管理」「セキュリティ」「開発環境」「コミュニケーション」「ツール」「プロセス」などの分類を使用してください。'
-            },
-            {
-              role: 'user',
-              content: `以下のDX失敗事例からタグとタイトルを生成してください：
-              いつ: ${updatedData.when}
-              どこで: ${updatedData.location}
-              誰が: ${updatedData.who}
-              何が起きたか: ${updatedData.summary}
-              どうなったか: ${updatedData.impact}
-              原因: ${updatedData.cause}
-              改善方法・アドバイス: ${updatedData.suggestions}`
-            }
-          ],
-          functions: [
-            {
-              name: 'generate_tags_and_title',
-              description: 'Generate tags and title for the DX failure case',
-              parameters: {
-                type: 'object',
-                properties: {
-                  tags: {
-                    type: 'array',
-                    items: {
-                      type: 'string'
-                    },
-                    description: 'Tags related to the DX failure case (max 5)',
-                  },
-                  title: {
-                    type: 'string',
-                    description: 'A concise title for the DX failure case',
-                  }
-                },
-                required: ['tags', 'title'],
+    if (isComplete && !updatedData.paragraph_summary) {
+      updatedData.paragraph_summary = await generateParagraphSummary(messages);
+      
+      if (!updatedData.tags) {
+        try {
+          const tagsResponse = await getOpenAIClient().chat.completions.create({
+            model: 'gpt-4o',
+            messages: [
+              {
+                role: 'system',
+                content: 'あなたはDX（開発者体験）の失敗事例からタグと簡潔なタイトルを生成するアシスタントです。以下の情報から、関連するタグ（5つまで）と簡潔なタイトルを生成してください。タグは「ネットワーク」「端末管理」「セキュリティ」「開発環境」「コミュニケーション」「ツール」「プロセス」などの分類を使用してください。'
+              },
+              {
+                role: 'user',
+                content: `以下のDX失敗事例からタグとタイトルを生成してください：\n\n${updatedData.paragraph_summary}`
               }
+            ],
+            functions: [
+              {
+                name: 'generate_tags_and_title',
+                description: 'Generate tags and title for the DX failure case',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    tags: {
+                      type: 'array',
+                      items: {
+                        type: 'string'
+                      },
+                      description: 'Tags related to the DX failure case (max 5)',
+                    },
+                    title: {
+                      type: 'string',
+                      description: 'A concise title for the DX failure case',
+                    }
+                  },
+                  required: ['tags', 'title'],
+                }
+              }
+            ],
+            function_call: { name: 'generate_tags_and_title' },
+          });
+          
+          const tagsMessage = tagsResponse.choices[0].message;
+          
+          if (
+            tagsMessage.function_call &&
+            tagsMessage.function_call.name === 'generate_tags_and_title'
+          ) {
+            try {
+              const tagsData = JSON.parse(tagsMessage.function_call.arguments);
+              updatedData.tags = tagsData.tags;
+              updatedData.title = tagsData.title;
+            } catch (error) {
+              console.error('Error parsing tags function call arguments:', error);
             }
-          ],
-          function_call: { name: 'generate_tags_and_title' },
-        });
-        
-        const tagsMessage = tagsResponse.choices[0].message;
-        
-        if (
-          tagsMessage.function_call &&
-          tagsMessage.function_call.name === 'generate_tags_and_title'
-        ) {
-          try {
-            const tagsData = JSON.parse(tagsMessage.function_call.arguments);
-            updatedData.tags = tagsData.tags;
-            updatedData.title = tagsData.title;
-          } catch (error) {
-            console.error('Error parsing tags function call arguments:', error);
           }
+        } catch (error) {
+          console.error('Error generating tags:', error);
         }
-      } catch (error) {
-        console.error('Error generating tags:', error);
       }
+      
+      const nextMessage = `情報が揃いました。以下の内容で送信してよろしいですか？\n\n${updatedData.paragraph_summary}`;
+      
+      return NextResponse.json({
+        message: nextMessage,
+        conversationData: updatedData,
+        complete: true,
+      });
     }
     
     return NextResponse.json({
-      message: nextQuestion,
+      message: assistantMessage.content || '会話を続けましょう。',
       conversationData: updatedData,
       complete: isComplete,
     });
