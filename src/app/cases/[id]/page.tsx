@@ -104,19 +104,19 @@ export default function CaseDetailPage() {
       </button>
       
       <div className="card">
-        <div className="relative h-64 md:h-96 w-full mb-6 rounded-t-2xl overflow-hidden">
+        <div className="relative h-64 md:h-96 lg:h-[500px] w-full mb-6 rounded-t-2xl overflow-hidden">
           <Image
             src={caseData.image_url}
             alt={caseData.title}
             fill
-            sizes="(max-width: 768px) 100vw, 1200px"
-            className="object-cover"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 1200px, 1400px"
+            className="object-contain md:object-cover"
             priority
           />
         </div>
         
         <div className="p-6">
-          <h1 className="text-3xl md:text-4xl font-bold text-primary mb-4">
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-primary mb-4">
             {caseData.title}
           </h1>
           
@@ -128,12 +128,14 @@ export default function CaseDetailPage() {
             ))}
           </div>
           
-          <p className="text-text-light text-sm mb-6">
-            投稿日: {formattedDate}
+          <p className="text-text-light text-sm md:text-base mb-6">
+            <span className="inline-block bg-gray-100 px-2 py-1 rounded">
+              投稿日: {formattedDate}
+            </span>
           </p>
           
           <div className="prose max-w-none">
-            <p className="text-text whitespace-pre-line">
+            <p className="text-text text-base md:text-lg whitespace-pre-line leading-relaxed">
               {caseData.summary}
             </p>
           </div>
