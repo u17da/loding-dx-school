@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 
 interface Case {
   title: string;
@@ -84,6 +84,7 @@ export default function SubmitPage() {
     setIsLoading(true);
     
     try {
+      const supabase = getSupabase();
       const { error } = await supabase
         .from('cases')
         .insert([generatedCase]);
