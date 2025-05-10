@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY,
-});
+const getOpenAI = () => {
+  const apiKey = process.env.OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('OpenAI API key is missing');
+  }
+  return new OpenAI({ apiKey });
+};
 
 export async function POST(request: Request) {
   try {
@@ -16,6 +20,7 @@ export async function POST(request: Request) {
       );
     }
 
+    const openai = getOpenAI();
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
