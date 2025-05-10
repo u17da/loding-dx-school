@@ -2,7 +2,6 @@
 
 import React from 'react';
 import dynamic from 'next/dynamic';
-import { Params } from 'next/dist/shared/lib/router/utils/route-matcher';
 
 // Use dynamic import with no SSR to prevent Supabase initialization during build
 const AdminEditContent = dynamic(
