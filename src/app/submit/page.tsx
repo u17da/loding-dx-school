@@ -16,6 +16,7 @@ interface ConversationData {
   tags?: string[];
   image_url?: string;
   title?: string;
+  paragraph_summary?: string;
 }
 
 type Message = {
@@ -84,7 +85,7 @@ export default function SubmitPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ content: conversationData.summary }),
+        body: JSON.stringify({ content: conversationData.paragraph_summary || conversationData.summary }),
       });
       
       if (!moderationResponse.ok) {
@@ -111,7 +112,7 @@ export default function SubmitPage() {
       
       const supabaseCase = {
         title: conversationData.title,
-        summary: conversationData.summary,
+        summary: conversationData.paragraph_summary || conversationData.summary,
         tags: JSON.stringify(conversationData.tags || []),
         image_url: conversationData.image_url,
         when: conversationData.when,
@@ -120,7 +121,8 @@ export default function SubmitPage() {
         impact: conversationData.impact,
         cause: conversationData.cause,
         suggestions: conversationData.suggestions,
-        conversation: JSON.stringify(conversation)
+        conversation: JSON.stringify(conversation),
+        paragraph_summary: conversationData.paragraph_summary
       };
       
       console.log('Submitting to Supabase:', supabaseCase);
@@ -200,41 +202,10 @@ export default function SubmitPage() {
               </div>
             )}
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div>
-                <h3 className="text-lg font-semibold mb-2 text-primary">いつ</h3>
-                <p className="text-text">{conversationData.when}</p>
-              </div>
-              
-              <div>
-                <h3 className="text-lg font-semibold mb-2 text-primary">どこで</h3>
-                <p className="text-text">{conversationData.location}</p>
-              </div>
-              
-              <div>
-                <h3 className="text-lg font-semibold mb-2 text-primary">誰が</h3>
-                <p className="text-text">{conversationData.who}</p>
-              </div>
-              
-              <div>
-                <h3 className="text-lg font-semibold mb-2 text-primary">何が起きたか</h3>
-                <p className="text-text">{conversationData.summary}</p>
-              </div>
-              
-              <div>
-                <h3 className="text-lg font-semibold mb-2 text-primary">どうなったか</h3>
-                <p className="text-text">{conversationData.impact}</p>
-              </div>
-              
-              <div>
-                <h3 className="text-lg font-semibold mb-2 text-primary">原因</h3>
-                <p className="text-text">{conversationData.cause}</p>
-              </div>
-              
-              <div className="md:col-span-2">
-                <h3 className="text-lg font-semibold mb-2 text-primary">改善方法・アドバイス</h3>
-                <p className="text-text">{conversationData.suggestions}</p>
-              </div>
+            <div className="mb-6">
+              <p className="text-text whitespace-pre-wrap leading-relaxed">
+                {conversationData.paragraph_summary || conversationData.summary}
+              </p>
             </div>
             
             <div>

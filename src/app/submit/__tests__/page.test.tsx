@@ -19,7 +19,8 @@ vi.mock('@/components/ConversationUI', () => ({
               impact: 'プロジェクトが遅延した',
               cause: '環境構築の問題',
               suggestions: '自動化ツールの導入',
-              tags: ['開発環境', 'ツール', 'プロセス']
+              tags: ['開発環境', 'ツール', 'プロセス'],
+              paragraph_summary: '2025年4月、社内開発環境で開発チームが環境構築の問題に直面し、プロジェクトが遅延しました。この問題を解決するためには、自動化ツールの導入が効果的であると考えられます。'
             },
             [
               { role: 'assistant', content: 'どのような失敗だったのか教えてください。' },
@@ -95,24 +96,19 @@ describe('SubmitPage with Conversational UI', () => {
       expect(screen.getByText('Test DX Failure')).toBeInTheDocument();
     });
     
-    expect(screen.getByText('いつ')).toBeInTheDocument();
-    expect(screen.getByText('2025年4月')).toBeInTheDocument();
-    expect(screen.getByText('どこで')).toBeInTheDocument();
-    expect(screen.getByText('社内開発環境')).toBeInTheDocument();
-    expect(screen.getByText('誰が')).toBeInTheDocument();
-    expect(screen.getByText('開発チーム')).toBeInTheDocument();
-    expect(screen.getByText('何が起きたか')).toBeInTheDocument();
     expect(screen.getByText('This is a test summary')).toBeInTheDocument();
-    expect(screen.getByText('どうなったか')).toBeInTheDocument();
-    expect(screen.getByText('プロジェクトが遅延した')).toBeInTheDocument();
-    expect(screen.getByText('原因')).toBeInTheDocument();
-    expect(screen.getByText('環境構築の問題')).toBeInTheDocument();
-    expect(screen.getByText('改善方法・アドバイス')).toBeInTheDocument();
-    expect(screen.getByText('自動化ツールの導入')).toBeInTheDocument();
     
     expect(screen.getByText('開発環境')).toBeInTheDocument();
     expect(screen.getByText('ツール')).toBeInTheDocument();
     expect(screen.getByText('プロセス')).toBeInTheDocument();
+    
+    expect(screen.queryByText('いつ')).not.toBeInTheDocument();
+    expect(screen.queryByText('どこで')).not.toBeInTheDocument();
+    expect(screen.queryByText('誰が')).not.toBeInTheDocument();
+    expect(screen.queryByText('何が起きたか')).not.toBeInTheDocument();
+    expect(screen.queryByText('どうなったか')).not.toBeInTheDocument();
+    expect(screen.queryByText('原因')).not.toBeInTheDocument();
+    expect(screen.queryByText('改善方法・アドバイス')).not.toBeInTheDocument();
   });
   
   it('submits the case to Supabase after confirmation', async () => {
@@ -182,8 +178,12 @@ describe('SubmitPage with Conversational UI', () => {
       if (url === '/api/generate-image-from-summary') {
         return Promise.resolve({
           ok: false,
-          json: () => Promise.resolve({ error: 'Failed to generate image' })
-        });
+          json: () => Promise.resolve({ error: 'Failed to generate image' }),
+          headers: new Headers(),
+          status: 500,
+          statusText: 'Error',
+          text: () => Promise.resolve(JSON.stringify({ error: 'Failed to generate image' }))
+        } as Response);
       }
       
       return createMockResponse({});
