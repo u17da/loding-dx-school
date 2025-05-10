@@ -59,7 +59,7 @@ export default function SubmitPage() {
         },
         body: JSON.stringify({
           messages: [userMessage],
-          conversationState: ConversationState.initial,
+          conversationState: ConversationState.gathering_details,
         }),
       });
       
