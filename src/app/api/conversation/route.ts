@@ -33,7 +33,7 @@ type ConversationStage =
   | 'seeking_suggestions' 
   | 'summarizing';
 
-const getConversationStage = (messages: Array<{role: string, content: string}>, conversationData: ConversationData): ConversationStage => {
+const getConversationStage = (messages: Array<{role: string, content: string}>): ConversationStage => {
   const messageCount = messages.filter(m => m.role === 'user').length;
   
   if (messageCount <= 1) return 'initial';
@@ -51,7 +51,7 @@ const isConversationComplete = (messages: Array<{role: string, content: string}>
   return userMessageCount >= 6 && hasKeyInfo;
 };
 
-const generateParagraphSummary = async (messages: Array<{role: 'user' | 'assistant', content: string}>, conversationData: ConversationData): Promise<string> => {
+const generateParagraphSummary = async (messages: Array<{role: 'user' | 'assistant', content: string}>): Promise<string> => {
   try {
     const apiMessages = [
       {
@@ -103,7 +103,7 @@ export async function POST(request: Request) {
       );
     }
     
-    const stage = getConversationStage(messages, currentData);
+    const stage = getConversationStage(messages);
     
     const functions = [
       {
@@ -193,7 +193,7 @@ export async function POST(request: Request) {
     const isComplete = isConversationComplete(messages, updatedData);
     
     if (isComplete && !updatedData.paragraph_summary) {
-      updatedData.paragraph_summary = await generateParagraphSummary(messages, updatedData);
+      updatedData.paragraph_summary = await generateParagraphSummary(messages);
       
       if (!updatedData.tags) {
         try {
