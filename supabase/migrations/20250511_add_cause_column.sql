@@ -1,0 +1,3 @@
+ALTER TABLE cases ADD COLUMN IF NOT EXISTS cause TEXT;
+
+UPDATE cases SET cause = '' WHERE cause IS NULL;

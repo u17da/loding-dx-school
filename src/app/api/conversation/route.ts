@@ -53,13 +53,14 @@ const generateParagraphSummary = async (messages: Array<{role: 'user' | 'assista
       {
         role: 'system' as const,
         content: `あなたはDX（開発者体験）の失敗事例を自然な文章にまとめるアシスタントです。
-        会話の内容から、以下の情報を含む自然な段落を作成してください：
+        会話全体を分析し、以下の情報を含む自然な段落を作成してください：
         - 失敗の概要
         - いつ、どこで、誰が関わったか（もし言及されていれば）
         - どのような影響があったか
         - 原因や理由
         - 改善方法や提案
         
+        重要：会話の最後のメッセージだけでなく、会話全体から得られた情報を総合的に要約してください。
         自然で読みやすい日本語の段落として、これらの情報を有機的につなげてください。
         箇条書きではなく、流れるような文章にしてください。`
       },
@@ -68,7 +69,8 @@ const generateParagraphSummary = async (messages: Array<{role: 'user' | 'assista
     
     const response = await getOpenAIClient().chat.completions.create({
       model: 'gpt-4o',
-      messages: apiMessages
+      messages: apiMessages,
+      temperature: 0.7, // より自然な文章生成のために少し温度を上げる
     });
     
     return response.choices[0].message.content || '要約を生成できませんでした。';
@@ -200,11 +202,22 @@ export async function POST(request: Request) {
             messages: [
               {
                 role: 'system',
-                content: 'あなたはDX（開発者体験）の失敗事例からタグと簡潔なタイトルを生成するアシスタントです。以下の情報から、関連するタグ（5つまで）と簡潔なタイトルを生成してください。タグは「ネットワーク」「端末管理」「セキュリティ」「開発環境」「コミュニケーション」「ツール」「プロセス」などの分類を使用してください。'
+                content: `あなたはDX（開発者体験）の失敗事例からタグと簡潔なタイトルを生成するアシスタントです。
+                以下の情報から、関連するタグ（3〜5つ）と簡潔なタイトルを生成してください。
+                
+                【重要】以下の汎用的なタグは避けてください：
+                - 「教育」「学校」「先生」「児童生徒」など、ほぼすべての事例に当てはまる一般的なタグ
+                
+                代わりに、以下のような具体的なタグを使用してください：
+                - 「ネットワーク障害」「認証エラー」「データ損失」「バックアップ不足」「権限設定」
+                - 「セキュリティ対策」「ソフトウェア互換性」「ハードウェア故障」「更新失敗」
+                - 「トレーニング不足」「マニュアル不備」「コミュニケーション不足」「リソース不足」
+                
+                タグは具体的で、事例の分類に役立つものにしてください。`
               },
               {
                 role: 'user',
-                content: `以下のDX失敗事例からタグとタイトルを生成してください：\n\n${updatedData.paragraph_summary}`
+                content: `以下のDX失敗事例から具体的なタグとタイトルを生成してください：\n\n${updatedData.paragraph_summary}`
               }
             ],
             functions: [
@@ -219,7 +232,7 @@ export async function POST(request: Request) {
                       items: {
                         type: 'string'
                       },
-                      description: 'Tags related to the DX failure case (max 5)',
+                      description: 'Specific tags related to the DX failure case (3-5 tags)',
                     },
                     title: {
                       type: 'string',
@@ -231,6 +244,7 @@ export async function POST(request: Request) {
               }
             ],
             function_call: { name: 'generate_tags_and_title' },
+            temperature: 0.7, // より多様なタグ生成のために温度を上げる
           });
           
           const tagsMessage = tagsResponse.choices[0].message;
