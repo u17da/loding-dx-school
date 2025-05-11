@@ -288,7 +288,7 @@ export async function POST(request: Request) {
     if (!assistantResponseMessage && assistantMessage.function_call) {
       try {
         let followUpPrompt = '';
-        let empathyPhrases = [
+        const empathyPhrases = [
           'それは大変でしたね。',
           'なるほど、理解できます。',
           'その状況は確かに難しいですね。',
