@@ -27,7 +27,19 @@ export async function POST(request: Request) {
       messages: [
         {
           role: 'system',
-          content: 'あなたはDX（開発者体験）の失敗事例から画像生成プロンプトを作成するアシスタントです。以下の情報から、DALL-Eで生成するための適切な画像プロンプトを作成してください。プロンプトは英語で、詳細かつ視覚的な要素を含み、プロフェッショナルな雰囲気のイラストになるようにしてください。'
+          content: `あなたはDX（開発者体験）の失敗事例から画像生成プロンプトを作成するアシスタントです。
+          以下の情報から、DALL-Eで生成するための適切な画像プロンプトを作成してください。
+          
+          【重要な要件】
+          - プロンプトは英語で作成してください
+          - 画像は「アニメ調」のスタイルで作成してください
+          - 登場人物は「日本人の教師」を想定してください
+          - 学校の教室やコンピュータ室などの教育現場を背景にしてください
+          - 技術的な問題や失敗を視覚的に表現してください
+          - 明るく親しみやすいアニメスタイルを使用してください
+          
+          プロンプトの最後に必ず以下の指示を含めてください：
+          "Anime style, Japanese teacher, school setting, bright colors, friendly character design"`
         },
         {
           role: 'user',
@@ -67,10 +79,10 @@ export async function POST(request: Request) {
         imagePrompt = promptData.prompt;
       } catch (error) {
         console.error('Error parsing prompt function call arguments:', error);
-        imagePrompt = `Create a professional illustration representing this developer experience failure: ${title || summary}. The image should be suitable for a technical audience.`;
+        imagePrompt = `Create an anime-style illustration of a Japanese teacher experiencing this developer experience failure: ${title || summary}. The image should be in a school setting with bright colors and friendly character design. Anime style, Japanese teacher, school setting, bright colors, friendly character design.`;
       }
     } else {
-      imagePrompt = `Create a professional illustration representing this developer experience failure: ${title || summary}. The image should be suitable for a technical audience.`;
+      imagePrompt = `Create an anime-style illustration of a Japanese teacher experiencing this developer experience failure: ${title || summary}. The image should be in a school setting with bright colors and friendly character design. Anime style, Japanese teacher, school setting, bright colors, friendly character design.`;
     }
     
     try {
