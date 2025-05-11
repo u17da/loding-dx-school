@@ -37,6 +37,7 @@ export default function SubmitPage() {
   const [currentInput, setCurrentInput] = useState('');
   const [assistantTyping, setAssistantTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Note: imageGenerating variable has been removed to fix ESLint error
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
