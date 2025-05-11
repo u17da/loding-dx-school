@@ -259,12 +259,57 @@ export async function POST(request: Request) {
       });
     }
     
+    let assistantResponseMessage = assistantMessage.content;
+    
+    if (!assistantResponseMessage && assistantMessage.function_call) {
+      try {
+        let followUpPrompt = '';
+        
+        if (stage === ConversationState.gathering_details) {
+          followUpPrompt = '失敗事例についてもう少し詳しく教えていただけますか？例えば、どのような影響がありましたか？';
+          
+          if (updatedData.summary && !updatedData.impact) {
+            followUpPrompt = 'その問題によって、どのような影響がありましたか？開発チームや製品にどのような支障が出ましたか？';
+          } else if (updatedData.impact && !updatedData.cause) {
+            followUpPrompt = 'なるほど、その問題の根本的な原因は何だったと思いますか？';
+          }
+        } else if (stage === ConversationState.seeking_suggestions) {
+          followUpPrompt = 'この経験から学んだことや、今後同じ問題を防ぐためのアドバイスはありますか？';
+        }
+        
+        const followUpResponse = await getOpenAIClient().chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: `あなたはDX（開発者体験）の失敗事例を収集する共感的なアシスタントです。
+              ユーザーの話を聞き、共感しながら自然な会話を続けてください。
+              以下の情報が既に収集されています：
+              ${JSON.stringify(updatedData, null, 2)}
+              
+              次の質問をするときは、上記の情報を踏まえて、自然な流れで質問してください。
+              必ず共感的な言葉を含め、機械的にならないようにしてください。
+              例：「それは大変でしたね」「なるほど、理解できます」など
+              
+              提案するフォローアップ質問: ${followUpPrompt}`
+            },
+            ...messages.map(m => ({ role: m.role, content: m.content }))
+          ]
+        });
+        
+        assistantResponseMessage = followUpResponse.choices[0].message.content || '会話を続けるために、もう少し詳しく教えていただけますか？';
+      } catch (error) {
+        console.error('Error generating follow-up response:', error);
+        assistantResponseMessage = '申し訳ありません、もう少し詳しく教えていただけますか？';
+      }
+    }
+    
     const state = typeof conversationState === 'string' 
       ? conversationState as ConversationState 
       : stage as ConversationState;
         
     return NextResponse.json({
-      message: assistantMessage.content || '会話を続けましょう。',
+      message: assistantResponseMessage || '会話を続けるために、もう少し詳しく教えていただけますか？',
       conversationData: updatedData,
       conversationState: state,
       complete: isComplete,
