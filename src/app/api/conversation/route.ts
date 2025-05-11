@@ -29,7 +29,7 @@ const getOpenAIClient = () => {
 const getConversationStage = (messages: Array<{role: string, content: string}>): ConversationState => {
   const messageCount = messages.filter(m => m.role === 'user').length;
   
-  if (messageCount <= 1) return ConversationState.initial;
+  if (messageCount === 1) return ConversationState.gathering_details;
   if (messageCount <= 3) return ConversationState.gathering_details;
   if (messageCount <= 9) return ConversationState.seeking_suggestions;
   return ConversationState.summarizing;
