@@ -37,9 +37,14 @@ const getConversationStage = (messages: Array<{role: string, content: string}>):
 
 const isConversationComplete = (messages: Array<{role: string, content: string}>, conversationData: ConversationData): boolean => {
   const userMessageCount = messages.filter(m => m.role === 'user').length;
-  const hasKeyInfo = !!(conversationData.summary && conversationData.impact && conversationData.suggestions);
+  const hasKeyInfo = !!(conversationData.summary && conversationData.impact);
+  const hasSuggestions = !!conversationData.suggestions;
   
-  return userMessageCount >= 6 && hasKeyInfo;
+  if (userMessageCount >= 3 && hasKeyInfo && hasSuggestions) {
+    return true;
+  }
+  
+  return userMessageCount >= 5 && hasKeyInfo;
 };
 
 const generateParagraphSummary = async (messages: Array<{role: 'user' | 'assistant', content: string}>): Promise<string> => {
@@ -184,6 +189,8 @@ export async function POST(request: Request) {
     const isComplete = isConversationComplete(messages, updatedData);
     
     if (isComplete && !updatedData.paragraph_summary) {
+      const transitionMessage = '共有、ありがとうございます。それでは事例の生成に入ります。少々お待ちください。';
+      
       updatedData.paragraph_summary = await generateParagraphSummary(messages);
       
       if (!updatedData.tags) {
@@ -245,7 +252,7 @@ export async function POST(request: Request) {
         }
       }
       
-      const nextMessage = `情報が揃いました。以下の内容で送信してよろしいですか？\n\n${updatedData.paragraph_summary}`;
+      const nextMessage = `${transitionMessage}\n\n情報が揃いました。以下の内容で送信してよろしいですか？\n\n${updatedData.paragraph_summary}`;
       
       const state = typeof conversationState === 'string' 
         ? conversationState as ConversationState 
@@ -261,20 +268,63 @@ export async function POST(request: Request) {
     
     let assistantResponseMessage = assistantMessage.content;
     
+    let nextStage = stage;
+    
+    const shouldCompleteConversation = isConversationComplete(messages, updatedData);
+    
+    if (shouldCompleteConversation) {
+      assistantResponseMessage = '共有、ありがとうございます。それでは事例の生成に入ります。少々お待ちください。';
+      
+      nextStage = ConversationState.summarizing;
+      
+      return NextResponse.json({
+        message: assistantResponseMessage,
+        conversationData: updatedData,
+        conversationState: nextStage,
+        complete: true,
+      });
+    }
+    
     if (!assistantResponseMessage && assistantMessage.function_call) {
       try {
         let followUpPrompt = '';
+        let empathyPhrases = [
+          'それは大変でしたね。',
+          'なるほど、理解できます。',
+          'その状況は確かに難しいですね。',
+          'ご苦労されたのですね。',
+          'その経験は貴重ですね。'
+        ];
+        
+        const randomEmpathy = empathyPhrases[Math.floor(Math.random() * empathyPhrases.length)];
+        
+        let nextStage = stage;
         
         if (stage === ConversationState.gathering_details) {
-          followUpPrompt = '失敗事例についてもう少し詳しく教えていただけますか？例えば、どのような影響がありましたか？';
-          
-          if (updatedData.summary && !updatedData.impact) {
+          if (!updatedData.summary) {
+            followUpPrompt = '失敗事例についてもう少し詳しく教えていただけますか？';
+          } else if (!updatedData.impact) {
             followUpPrompt = 'その問題によって、どのような影響がありましたか？開発チームや製品にどのような支障が出ましたか？';
-          } else if (updatedData.impact && !updatedData.cause) {
-            followUpPrompt = 'なるほど、その問題の根本的な原因は何だったと思いますか？';
+          } else if (!updatedData.cause) {
+            followUpPrompt = 'その問題の根本的な原因は何だったと思いますか？';
+          } else {
+            followUpPrompt = 'この経験から学んだことや、今後同じ問題を防ぐためのアドバイスはありますか？';
+            nextStage = ConversationState.seeking_suggestions;
           }
         } else if (stage === ConversationState.seeking_suggestions) {
-          followUpPrompt = 'この経験から学んだことや、今後同じ問題を防ぐためのアドバイスはありますか？';
+          if (!updatedData.suggestions) {
+            followUpPrompt = 'この経験から学んだことや、今後同じ問題を防ぐためのアドバイスはありますか？';
+          } else {
+            assistantResponseMessage = '共有、ありがとうございます。それでは事例の生成に入ります。少々お待ちください。';
+            nextStage = ConversationState.summarizing;
+            
+            return NextResponse.json({
+              message: assistantResponseMessage,
+              conversationData: updatedData,
+              conversationState: nextStage,
+              complete: true,
+            });
+          }
         }
         
         const followUpResponse = await getOpenAIClient().chat.completions.create({
@@ -291,13 +341,16 @@ export async function POST(request: Request) {
               必ず共感的な言葉を含め、機械的にならないようにしてください。
               例：「それは大変でしたね」「なるほど、理解できます」など
               
-              提案するフォローアップ質問: ${followUpPrompt}`
+              共感フレーズ: ${randomEmpathy}
+              提案するフォローアップ質問: ${followUpPrompt}
+              
+              共感フレーズとフォローアップ質問を自然につなげた応答を生成してください。`
             },
             ...messages.map(m => ({ role: m.role, content: m.content }))
           ]
         });
         
-        assistantResponseMessage = followUpResponse.choices[0].message.content || '会話を続けるために、もう少し詳しく教えていただけますか？';
+        assistantResponseMessage = followUpResponse.choices[0].message.content || `${randomEmpathy} ${followUpPrompt}`;
       } catch (error) {
         console.error('Error generating follow-up response:', error);
         assistantResponseMessage = '申し訳ありません、もう少し詳しく教えていただけますか？';
@@ -306,7 +359,7 @@ export async function POST(request: Request) {
     
     const state = typeof conversationState === 'string' 
       ? conversationState as ConversationState 
-      : stage as ConversationState;
+      : nextStage;
         
     return NextResponse.json({
       message: assistantResponseMessage || '会話を続けるために、もう少し詳しく教えていただけますか？',
